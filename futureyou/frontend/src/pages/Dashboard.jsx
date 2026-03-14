@@ -1,22 +1,51 @@
-import { useContext } from 'react';
+import { useContext, useState } from 'react';
 import { AppContext } from '../context/AppContext';
 import { motion } from 'framer-motion';
-import { Brain, Activity, Clock, Sparkles } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, PieChart, Pie, Cell, Legend } from 'recharts';
+import { Brain, Activity, Clock, Sparkles, CheckCircle2 } from 'lucide-react';
+import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Navigate } from 'react-router-dom';
+import axios from 'axios';
 
 export default function Dashboard() {
-    const { predictions, habits } = useContext(AppContext);
+    const { user, predictions, habits, trajectory } = useContext(AppContext);
+    const [actualExamScore, setActualExamScore] = useState('');
+    const [actualStressLevel, setActualStressLevel] = useState('');
+    const [feedbackStatus, setFeedbackStatus] = useState('idle'); // idle, loading, success, error
 
-    if (!predictions) {
+    const handleFeedbackSubmit = async (e) => {
+        e.preventDefault();
+        if (!actualExamScore && !actualStressLevel) return;
+        setFeedbackStatus('loading');
+        try {
+            await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/feedback`, {
+                user_id: user?.id || "anonymous",
+                actual_exam_score: actualExamScore ? parseFloat(actualExamScore) : null,
+                actual_stress_level: actualStressLevel ? parseFloat(actualStressLevel) : null,
+                habits: habits
+            });
+            setFeedbackStatus('success');
+            setTimeout(() => setFeedbackStatus('idle'), 3000);
+            setActualExamScore('');
+            setActualStressLevel('');
+        } catch (error) {
+            console.error(error);
+            setFeedbackStatus('error');
+        }
+    };
+
+    if (!predictions || !trajectory) {
         return <Navigate to="/" />;
     }
 
-    // Generate fake historical points converging to our prediction to make the graph look awesome
-    const performanceData = Array.from({ length: habits.years_ahead }).map((_, i) => ({
-        year: `Year ${i + 1}`,
-        score: Math.min(100, (predictions.exam_score * 0.7) + (i * (predictions.exam_score * 0.3 / habits.years_ahead))),
-        stress: Math.min(100, Math.max(0, predictions.stress_pct + ((Math.random() - 0.5) * 20))),
+    // Map the 3 trajectories into a single array for Recharts
+    const multiverseData = trajectory.current.map((pt, i) => ({
+        year: i === 0 ? 'Now' : `Year ${pt.year}`,
+        current_score: pt.exam_score,
+        declining_score: trajectory.declining[i].exam_score,
+        optimized_score: trajectory.optimized[i].exam_score,
+        current_stress: pt.stress_pct,
+        declining_stress: trajectory.declining[i].stress_pct,
+        optimized_stress: trajectory.optimized[i].stress_pct,
     }));
 
     const radarData = [
@@ -72,28 +101,71 @@ export default function Dashboard() {
                 ))}
             </div>
 
-            {/* Area Chart Row */}
+            {/* Explainable AI Row */}
+            {predictions.insights && (
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.98 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.3 }}
+                    className="glass-panel p-8 rounded-[2rem] mb-12"
+                >
+                    <div className="flex items-center gap-3 mb-6">
+                        <Sparkles className="text-neon" size={24} />
+                        <h3 className="text-xl font-bold tracking-tighter">AI Insights (Why did I get this prediction?)</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {[
+                            { title: "Academic Performance", data: predictions.insights.exam },
+                            { title: "Dropout Risk", data: predictions.insights.dropout },
+                            { title: "Stress Level", data: predictions.insights.stress }
+                        ].map((model, idx) => (
+                            <div key={idx} className="bg-white/5 rounded-xl p-6 border border-white/10">
+                                <h4 className="text-sm font-bold tracking-widest text-gray-400 uppercase mb-4">{model.title} Drivers</h4>
+                                <div className="flex flex-col gap-3">
+                                    {model.data?.map((insight, i) => (
+                                        <div key={i} className="flex justify-between items-center text-sm">
+                                            <span className="text-gray-300 capitalize">{insight.feature.replace(/_/g, ' ')}</span>
+                                            <span className={`font-mono font-bold ${insight.direction === 'positive' ? 'text-green-400' : 'text-red-400'}`}>
+                                                {insight.direction === 'positive' ? '+' : '-'}{insight.impact}%
+                                            </span>
+                                        </div>
+                                    ))}
+                                    {(!model.data || model.data.length === 0) && <p className="text-xs text-gray-500">No major factors identified.</p>}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </motion.div>
+            )}
+
+            {/* Multiverse Trajectory Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.4 }}
-                    className="glass-panel p-8 rounded-[2rem] w-full h-[400px]"
+                    className="glass-panel p-8 rounded-[2rem] w-full h-[400px] relative overflow-hidden group"
                 >
-                    <h3 className="text-sm font-bold tracking-widest text-gray-400 uppercase mb-8">Academic Performance Trend</h3>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={performanceData}>
-                            <defs>
-                                <linearGradient id="colorScore" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#00ffcc" stopOpacity={0.8} />
-                                    <stop offset="95%" stopColor="#00ffcc" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
+                    <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                    <div className="flex justify-between items-center mb-8">
+                        <h3 className="text-sm font-bold tracking-widest text-gray-400 uppercase">Multiverse: Academic Performance</h3>
+                        <div className="flex gap-4 text-xs">
+                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#00ffcc]"></div> Optimized</span>
+                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#ffffff] opacity-50"></div> Current</span>
+                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#ff3366]"></div> Declining</span>
+                        </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height="90%">
+                        <LineChart data={multiverseData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" vertical={false} />
                             <XAxis dataKey="year" stroke="#4b5563" tick={{ fill: '#4b5563' }} />
                             <YAxis domain={[0, 100]} stroke="#4b5563" tick={{ fill: '#4b5563' }} />
-                            <Tooltip contentStyle={{ backgroundColor: '#050508', borderRadius: '12px', border: '1px solid #374151' }} />
-                            <Area type="monotone" dataKey="score" stroke="#00ffcc" strokeWidth={3} fillOpacity={1} fill="url(#colorScore)" />
-                        </AreaChart>
+                            <Tooltip contentStyle={{ backgroundColor: 'rgba(5, 5, 8, 0.9)', borderRadius: '12px', border: '1px solid #374151', backdropFilter: 'blur(10px)' }} />
+                            <Line type="monotone" dataKey="optimized_score" name="Optimized Path" stroke="#00ffcc" strokeWidth={4} dot={{ r: 4, fill: '#00ffcc', strokeWidth: 0 }} activeDot={{ r: 8 }} />
+                            <Line type="monotone" dataKey="current_score" name="Current Path" stroke="#ffffff" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3, fill: '#ffffff', strokeWidth: 0 }} opacity={0.5} />
+                            <Line type="monotone" dataKey="declining_score" name="Declining Path" stroke="#ff3366" strokeWidth={3} dot={{ r: 3, fill: '#ff3366', strokeWidth: 0 }} opacity={0.8} />
+                        </LineChart>
                     </ResponsiveContainer>
                 </motion.div>
 
@@ -101,22 +173,27 @@ export default function Dashboard() {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.5 }}
-                    className="glass-panel p-8 rounded-[2rem] w-full h-[400px]"
+                    className="glass-panel p-8 rounded-[2rem] w-full h-[400px] relative overflow-hidden group"
                 >
-                    <h3 className="text-sm font-bold tracking-widest text-gray-400 uppercase mb-8">Stress & Burnout Forecast</h3>
-                    <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={performanceData}>
-                            <defs>
-                                <linearGradient id="colorStress" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#b026ff" stopOpacity={0.8} />
-                                    <stop offset="95%" stopColor="#b026ff" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
+                    <div className="absolute inset-0 bg-gradient-to-tl from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none"></div>
+                    <div className="flex justify-between items-center mb-8">
+                        <h3 className="text-sm font-bold tracking-widest text-gray-400 uppercase">Multiverse: Stress Forecast</h3>
+                        <div className="flex gap-4 text-xs">
+                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#00ffcc]"></div> Optimized</span>
+                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#ffffff] opacity-50"></div> Current</span>
+                            <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-[#ff3366]"></div> Declining</span>
+                        </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height="90%">
+                        <LineChart data={multiverseData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#2d3748" vertical={false} />
                             <XAxis dataKey="year" stroke="#4b5563" tick={{ fill: '#4b5563' }} />
                             <YAxis domain={[0, 100]} stroke="#4b5563" tick={{ fill: '#4b5563' }} />
-                            <Tooltip contentStyle={{ backgroundColor: '#050508', borderRadius: '12px', border: '1px solid #374151' }} />
-                            <Area type="monotone" dataKey="stress" stroke="#b026ff" strokeWidth={3} fillOpacity={1} fill="url(#colorStress)" />
-                        </AreaChart>
+                            <Tooltip contentStyle={{ backgroundColor: 'rgba(5, 5, 8, 0.9)', borderRadius: '12px', border: '1px solid #374151', backdropFilter: 'blur(10px)' }} />
+                            <Line type="monotone" dataKey="optimized_stress" name="Optimized Path" stroke="#00ffcc" strokeWidth={4} dot={{ r: 4, fill: '#00ffcc', strokeWidth: 0 }} activeDot={{ r: 8 }} />
+                            <Line type="monotone" dataKey="current_stress" name="Current Path" stroke="#ffffff" strokeWidth={2} strokeDasharray="5 5" dot={{ r: 3, fill: '#ffffff', strokeWidth: 0 }} opacity={0.5} />
+                            <Line type="monotone" dataKey="declining_stress" name="Declining Path" stroke="#ff3366" strokeWidth={3} dot={{ r: 3, fill: '#ff3366', strokeWidth: 0 }} opacity={0.8} />
+                        </LineChart>
                     </ResponsiveContainer>
                 </motion.div>
             </div>
@@ -170,6 +247,36 @@ export default function Dashboard() {
                     </ResponsiveContainer>
                 </motion.div>
             </div>
+
+            {/* Continuous Fine-Tuning Feedback Row */}
+            <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.8 }}
+                className="glass-panel p-8 rounded-[2rem] mt-8"
+            >
+                <div className="flex items-center gap-3 mb-6">
+                    <CheckCircle2 className="text-neon" size={24} />
+                    <h3 className="text-xl font-bold tracking-tighter">Log Today's Reality (Fine-Tune Your Model)</h3>
+                </div>
+                <p className="text-sm text-gray-400 mb-6">Help your Future Self learn. By logging your actual performance, the machine learning models continuously retrain to provide more accurate trajectories.</p>
+                
+                <form onSubmit={handleFeedbackSubmit} className="flex flex-col sm:flex-row gap-4 items-end">
+                    <div className="flex-1 w-full">
+                        <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Actual Exam Score (0-100)</label>
+                        <input type="number" min="0" max="100" value={actualExamScore} onChange={e => setActualExamScore(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-neon focus:ring-1 focus:ring-neon" placeholder={`Predicted: ${predictions.exam_score.toFixed(1)}`} />
+                    </div>
+                    <div className="flex-1 w-full">
+                        <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Actual Stress Level (0-100%)</label>
+                        <input type="number" min="0" max="100" value={actualStressLevel} onChange={e => setActualStressLevel(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-neon focus:ring-1 focus:ring-neon" placeholder={`Predicted: ${predictions.stress_pct.toFixed(1)}%`} />
+                    </div>
+                    <button type="submit" disabled={feedbackStatus === 'loading'} className="h-[50px] px-8 bg-neon text-dark font-bold rounded-xl hover:bg-white transition-colors disabled:opacity-50 whitespace-nowrap">
+                        {feedbackStatus === 'loading' ? 'Sending...' : feedbackStatus === 'success' ? 'Logged!' : 'Log Data'}
+                    </button>
+                </form>
+                {feedbackStatus === 'error' && <p className="text-red-400 text-sm mt-3">Failed to log data. Please try again.</p>}
+            </motion.div>
+
         </motion.div>
     );
 }

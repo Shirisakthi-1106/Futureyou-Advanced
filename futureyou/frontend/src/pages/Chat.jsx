@@ -35,6 +35,7 @@ export default function Chat() {
 
         try {
             const payload = {
+                user_id: user.id,
                 ...habits,
                 sleep_hours: Number(habits.sleep_hours),
                 study_hours: Number(habits.study_hours),

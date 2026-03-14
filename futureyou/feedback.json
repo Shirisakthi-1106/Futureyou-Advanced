@@ -1,0 +1,19 @@
+[
+  {
+    "timestamp": "2026-03-13T20:12:19.341809",
+    "user_id": "f4d5442c-b0f6-41df-baaa-5103509f86ae",
+    "actual_exam_score": 67.0,
+    "actual_stress_level": 50.0,
+    "habits": {
+      "sleep_hours": 3.5,
+      "study_hours": 1,
+      "screen_time": 10,
+      "social_media_hours": 6.5,
+      "exercise_frequency": 0,
+      "mood_score": 2,
+      "diet_quality": 0,
+      "mental_health_rating": 3,
+      "years_ahead": 5
+    }
+  }
+]

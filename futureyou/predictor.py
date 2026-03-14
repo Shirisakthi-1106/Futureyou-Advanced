@@ -7,7 +7,7 @@ Loads trained models and generates predictions + trajectory data.
 import numpy as np
 import joblib
 import os
-
+import shap
 
 def load_models():
     models = {}
@@ -19,13 +19,44 @@ def load_models():
 
         models["stress"] = joblib.load("models/stress_model.pkl")
         models["scaler_stress"] = joblib.load("models/scaler_stress.pkl")
+        models["features_stress"] = joblib.load("models/features_stress.pkl")
 
         models["wb"] = joblib.load("models/wb_model.pkl")
         models["scaler_wb"] = joblib.load("models/scaler_wb.pkl")
+        models["features_wb"] = joblib.load("models/features_wb.pkl")
+        
+        # Initialize SHAP explainers (do it once if possible, but for TreeExplainer it's fast)
+        models["explainer_exam"] = shap.TreeExplainer(models["exam"])
+        models["explainer_dropout"] = shap.TreeExplainer(models["dropout"])
+        models["explainer_stress"] = shap.TreeExplainer(models["stress"])
+        models["explainer_wb"] = shap.TreeExplainer(models["wb"])
+        
     except FileNotFoundError:
         return None
     return models
 
+def get_top_shap_features(shap_values, feature_names, top_n=3):
+    """Helper to extract top positive and negative contributing features"""
+    # For TreeExplainer on some models shap_values could be a list (like in classification), 
+    # but for GradientBoostingClassifier it usually returns one array or a list of one array for the positive class.
+    # We will assume a 1D array per prediction for simplicity (batch size 1).
+    vals = shap_values[0] if isinstance(shap_values, list) else shap_values
+    if len(vals.shape) > 1 and vals.shape[0] == 1:
+        vals = vals[0]
+        
+    feature_importance = list(zip(feature_names, vals))
+    # Sort by absolute impact
+    feature_importance = sorted(feature_importance, key=lambda x: abs(x[1]), reverse=True)
+    
+    impacts = []
+    for name, val in feature_importance[:top_n]:
+        if abs(val) > 0.01: # threshold to ignore tiny noise
+            impacts.append({
+                "feature": name,
+                "impact": round(float(val), 2),
+                "direction": "positive" if val > 0 else "negative"
+            })
+    return impacts
 
 def predict_all(models, user_input: dict) -> dict:
     """
@@ -100,6 +131,26 @@ def predict_all(models, user_input: dict) -> dict:
     wb_score = float(models["wb"].predict(x_wb_s)[0])
     wb_score = np.clip(wb_score, 1, 10)
 
+    # --- SHAP Explanations ---
+    # Only calculate SHAP if explainers are loaded (it won't be if models failed to load properly)
+    insights = {}
+    if "explainer_exam" in models:
+        # Note: We pass the SCALED features to the explainer because that's what the model expects
+        shap_exam = models["explainer_exam"].shap_values(x_main_s)
+        insights["exam"] = get_top_shap_features(shap_exam, models["features_main"])
+        
+        shap_dropout = models["explainer_dropout"].shap_values(x_main_s)
+        # dropout is a classifier, shap_values might be a list of len 2 depending on the model
+        if isinstance(shap_dropout, list) and len(shap_dropout) == 2:
+            shap_dropout = shap_dropout[1] # positive class
+        insights["dropout"] = get_top_shap_features(shap_dropout, models["features_main"])
+        
+        shap_stress = models["explainer_stress"].shap_values(x_stress_s)
+        insights["stress"] = get_top_shap_features(shap_stress, models["features_stress"])
+        
+        shap_wb = models["explainer_wb"].shap_values(x_wb_s)
+        insights["wellbeing"] = get_top_shap_features(shap_wb, models["features_wb"])
+
     return {
         "exam_score": round(exam_score, 1),
         "dropout_prob": round(dropout_prob * 100, 1),
@@ -108,6 +159,7 @@ def predict_all(models, user_input: dict) -> dict:
         "wellbeing_score": round(wb_score, 1),
         "attendance": round(attendance, 1),
         "time_mgmt": round(time_mgmt, 1),
+        "insights": insights
     }
 
 

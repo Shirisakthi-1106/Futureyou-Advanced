@@ -20,6 +20,7 @@ export function AppProvider({ children }) {
     });
 
     const [predictions, setPredictions] = useState(null);
+    const [trajectory, setTrajectory] = useState(null);
     const [chatHistory, setChatHistory] = useState([]);
 
     const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -47,6 +48,7 @@ export function AppProvider({ children }) {
             isAuthOpen, setIsAuthOpen,
             habits, setHabits,
             predictions, setPredictions,
+            trajectory, setTrajectory,
             chatHistory, setChatHistory
         }}>
             {children}
