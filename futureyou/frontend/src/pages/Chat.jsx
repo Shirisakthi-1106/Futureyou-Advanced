@@ -4,12 +4,56 @@ import { motion } from 'framer-motion';
 import { Send, User, Sparkles } from 'lucide-react';
 import { Navigate } from 'react-router-dom';
 import axios from 'axios';
+import FutureAvatar from '../components/FutureAvatar';
 
 export default function Chat() {
     const { user, predictions, habits, chatHistory, setChatHistory } = useContext(AppContext);
     const [chatInput, setChatInput] = useState('');
     const [chatLoading, setChatLoading] = useState(false);
+    const [isSpeaking, setIsSpeaking] = useState(false);
     const messagesEndRef = useRef(null);
+
+    const speakMessage = (text) => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel(); // Stop any current speech
+            
+            // Clean up text for speech (remove markdown asterisks, etc)
+            const cleanText = text.replace(/[*#]/g, '');
+            
+            const utterance = new SpeechSynthesisUtterance(cleanText);
+            
+            // Try to find a good English voice
+            const voices = window.speechSynthesis.getVoices();
+            const preferredVoice = voices.find(v => v.lang.includes('en-') && (v.name.includes('Google') || v.name.includes('Premium')));
+            if(preferredVoice) utterance.voice = preferredVoice;
+            
+            // Adjust pitch/rate based on predictions to make it dynamic
+            if (predictions) {
+                const wellbeing = predictions.wellbeing_score || 5;
+                utterance.pitch = wellbeing >= 7 ? 1.2 : wellbeing <= 4 ? 0.8 : 1.0;
+                utterance.rate = wellbeing >= 7 ? 1.0 : wellbeing <= 4 ? 0.9 : 1.0;
+            } else {
+                utterance.pitch = 1;
+                utterance.rate = 1;
+            }
+
+            utterance.onstart = () => setIsSpeaking(true);
+            utterance.onend = () => setIsSpeaking(false);
+            utterance.onerror = () => setIsSpeaking(false);
+
+            window.speechSynthesis.speak(utterance);
+        }
+    };
+
+    // Ensure voices are loaded
+    useEffect(() => {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.getVoices();
+        }
+        return () => {
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        };
+    }, []);
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -53,7 +97,9 @@ export default function Chat() {
                 message: currentMessage,
                 history: newHistory.slice(0, -1)
             });
-            setChatHistory([...newHistory, { role: 'future', content: chatRes.data.reply }]);
+            const reply = chatRes.data.reply;
+            setChatHistory([...newHistory, { role: 'future', content: reply }]);
+            speakMessage(reply);
         } catch (e) {
             console.error(e);
             window.alert('Failed to send message. Make sure api.py is running on port 8000.');
@@ -63,6 +109,11 @@ export default function Chat() {
 
     return (
         <div className="flex flex-col h-screen pt-20 pb-0 bg-dark w-full absolute inset-0 z-20">
+            {/* Visual Avatar Anchor */}
+            <div className={`w-full transition-all duration-700 ease-in-out flex-shrink-0 ${chatHistory.length === 0 ? 'h-1/2' : 'h-32 md:h-48'}`}>
+                 <FutureAvatar isSpeaking={isSpeaking} predictions={predictions} />
+            </div>
+
             <div className="flex-1 overflow-y-auto custom-scrollbar w-full">
                 {chatHistory.length === 0 && (
                     <div className="h-full flex flex-col items-center justify-center text-center px-4 opacity-50">

@@ -22,6 +22,17 @@ export function AppProvider({ children }) {
     const [predictions, setPredictions] = useState(null);
     const [trajectory, setTrajectory] = useState(null);
     const [chatHistory, setChatHistory] = useState([]);
+    
+    // Store user's custom avatar URL, persist in localStorage for simplicity
+    const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('futureyou_avatar_url') || '');
+
+    useEffect(() => {
+        if (avatarUrl) {
+            localStorage.setItem('futureyou_avatar_url', avatarUrl);
+        } else {
+            localStorage.removeItem('futureyou_avatar_url');
+        }
+    }, [avatarUrl]);
 
     const [isAuthOpen, setIsAuthOpen] = useState(false);
 
@@ -49,7 +60,8 @@ export function AppProvider({ children }) {
             habits, setHabits,
             predictions, setPredictions,
             trajectory, setTrajectory,
-            chatHistory, setChatHistory
+            chatHistory, setChatHistory,
+            avatarUrl, setAvatarUrl
         }}>
             {children}
         </AppContext.Provider>

@@ -1,13 +1,15 @@
 import { useContext, useState } from 'react';
 import { AppContext } from '../context/AppContext';
 import { motion } from 'framer-motion';
-import { Brain, Activity, Clock, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Brain, Activity, Clock, Sparkles, CheckCircle2, User } from 'lucide-react';
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Navigate } from 'react-router-dom';
 import axios from 'axios';
+import AvatarCreatorModal from '../components/AvatarCreatorModal';
 
 export default function Dashboard() {
-    const { user, predictions, habits, trajectory } = useContext(AppContext);
+    const { user, predictions, habits, trajectory, avatarUrl, setAvatarUrl } = useContext(AppContext);
+    const [isCreatorOpen, setIsCreatorOpen] = useState(false);
     const [actualExamScore, setActualExamScore] = useState('');
     const [actualStressLevel, setActualStressLevel] = useState('');
     const [feedbackStatus, setFeedbackStatus] = useState('idle'); // idle, loading, success, error
@@ -247,6 +249,63 @@ export default function Dashboard() {
                     </ResponsiveContainer>
                 </motion.div>
             </div>
+
+            {/* Custom Avatar Row */}
+            <motion.div
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.75 }}
+                className="glass-panel p-8 rounded-[2rem] mt-8"
+            >
+                <AvatarCreatorModal
+                    isOpen={isCreatorOpen}
+                    onClose={() => setIsCreatorOpen(false)}
+                    onAvatarCreated={(url) => {
+                        setAvatarUrl(url);
+                    }}
+                />
+
+                <div className="flex items-center gap-3 mb-6">
+                    <User className="text-neon" size={24} />
+                    <h3 className="text-xl font-bold tracking-tighter">Initialize Your Neural Link (Custom Avatar)</h3>
+                </div>
+                <p className="text-sm text-gray-400 mb-6">Want to see your own face in the "Future You Chat"? Create a free 3D avatar of yourself right here inside the app!</p>
+                
+                <div className="flex flex-col sm:flex-row gap-4 items-center">
+                    <div className="flex-1 w-full relative">
+                        <label className="block text-xs uppercase tracking-widest text-gray-500 mb-2">Your Ready Player Me GLB URL</label>
+                        <input type="url" value={avatarUrl} onChange={e => setAvatarUrl(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-neon focus:ring-1 focus:ring-neon" placeholder="No custom avatar linked yet. Click 'Create' to start." />
+                    </div>
+                    
+                    <button 
+                        onClick={() => setIsCreatorOpen(true)}
+                        className="h-[50px] px-8 bg-neon text-dark font-bold rounded-xl hover:bg-white transition-colors whitespace-nowrap shadow-[0_0_15px_rgba(0,255,204,0.3)] mt-6 sm:mt-0"
+                    >
+                        {avatarUrl ? 'Update Avatar' : 'Create In-App Avatar'}
+                    </button>
+                    
+                    {/* NEW: Local File Upload Fallback */}
+                    <label className="h-[50px] px-6 bg-white/5 text-gray-300 font-bold rounded-xl hover:bg-white/10 transition-colors whitespace-nowrap border border-white/10 cursor-pointer flex items-center mt-6 sm:mt-0">
+                        Upload .GLB Output
+                        <input 
+                            type="file" 
+                            accept=".glb" 
+                            className="hidden" 
+                            onChange={(e) => {
+                                const file = e.target.files[0];
+                                if (file) {
+                                    const objectUrl = URL.createObjectURL(file);
+                                    setAvatarUrl(objectUrl);
+                                }
+                            }}
+                        />
+                    </label>
+
+                    {avatarUrl && (
+                         <button onClick={() => setAvatarUrl('')} className="h-[50px] px-6 bg-red-500/10 text-red-400 font-bold rounded-xl border border-red-500/20 hover:bg-red-500/20 transition-colors mt-6 sm:mt-0">Clear Link</button>
+                    )}
+                </div>
+            </motion.div>
 
             {/* Continuous Fine-Tuning Feedback Row */}
             <motion.div
