@@ -115,5 +115,24 @@
       "agent_reply": "I'm you, 5 years ahead. I've lived the consequences of our choices. I see that our academic performance score was 88.2/100 and stress level was 57.4% back then. I've walked the path, and I'm here to tell you that our habits, like 6.5 hours of sleep and 3.0 hours of social media, have shaped me into the person I am today. I'm here to guide you, to warn you, and to help you make the most of our potential. Let's reflect on our journey - from no logged exam score to 88.2, and from unknown stress to 57.4%. Listen to me, because I'm the result of our decisions.",
       "timestamp": "2026-03-26T19:29:05.351772"
     }
+  ],
+  "test_user": [
+    {
+      "type": "prediction",
+      "habits": {
+        "sleep_hours": 6.0,
+        "study_hours": 4.0,
+        "screen_time": 5.0,
+        "social_media_hours": 3.0,
+        "exercise_frequency": 2,
+        "mood_score": 6,
+        "diet_quality": 1,
+        "mental_health_rating": 7,
+        "years_ahead": 5
+      },
+      "exam_score": 89.6,
+      "stress_level": 51.2,
+      "timestamp": "2026-03-30T20:00:39.052729"
+    }
   ]
 }

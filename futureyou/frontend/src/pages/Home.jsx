@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 export default function Home() {
-    const { user, setIsAuthOpen, habits, setHabits, setPredictions, setTrajectory, setChatHistory } = useContext(AppContext);
+    const { user, setIsAuthOpen, habits, setHabits, setPredictions, setTrajectory, setQuests, setTimeline, setChatHistory } = useContext(AppContext);
     const [loading, setLoading] = useState(false);
     const [inputMode, setInputMode] = useState('sliders');
     const [textInput, setTextInput] = useState('');
@@ -54,6 +54,8 @@ export default function Home() {
             const res = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/predict`, payload);
             setPredictions(res.data.predictions);
             setTrajectory(res.data.trajectory);
+            setQuests(res.data.quests || []);
+            setTimeline(res.data.timeline || []);
 
             // Initialize chat implicitly for the future
             const chatRes = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/chat`, {
@@ -87,58 +89,74 @@ export default function Home() {
 
     return (
         <motion.div
-            initial={{ opacity: 0, scale: 0.98 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.5 }}
-            className="max-w-5xl mx-auto pt-32 pb-20"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="max-w-5xl mx-auto pt-24 pb-20 relative px-4"
         >
-            <div className="text-center mb-16">
-                <h1 className="text-6xl font-black tracking-tighter mb-4 bg-gradient-to-r from-white to-gray-500 bg-clip-text text-transparent">
-                    Define Your <span className="text-neon bg-none">Variables</span>
-                </h1>
-                <p className="text-gray-400 text-lg">Adjust the sliders to simulate your quantum timeline.</p>
+            {/* Ambient background effect */}
+            <div className="fixed inset-0 -z-50 pointer-events-none overflow-hidden">
+                <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-neon/10 blur-[120px] animate-pulse"></div>
+                <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-purple/10 blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
             </div>
 
-            <div className="flex justify-center gap-4 mb-8">
+            <div className="text-center mb-16 relative">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2 }}
+                >
+                    <span className="px-4 py-1.5 rounded-full border border-white/10 bg-white/5 text-[10px] font-black uppercase tracking-[0.3em] text-neon mb-6 inline-block">
+                        Quantum Trajectory Simulator
+                    </span>
+                    <h1 className="text-5xl md:text-7xl font-black tracking-tighter mb-6 leading-[0.9]">
+                        Design Your <br/>
+                        <span className="text-transparent bg-clip-text bg-gradient-to-r from-neon via-white to-purple">Future Self</span>
+                    </h1>
+                    <p className="text-gray-400 text-base md:text-xl max-w-2xl mx-auto font-medium">
+                        Adjust your daily variables to simulate the multiversal path of who you are becoming.
+                    </p>
+                </motion.div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-center gap-4 mb-10">
                 <button 
                     onClick={() => setInputMode('sliders')}
-                    className={`px-6 py-2 rounded-full font-bold text-sm tracking-widest uppercase transition-all flex items-center gap-2 ${inputMode === 'sliders' ? 'bg-neon text-dark shadow-[0_0_20px_rgba(0,255,204,0.4)]' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                    className={`px-8 py-3 rounded-2xl font-black text-xs tracking-widest uppercase transition-all flex items-center justify-center gap-2 border ${inputMode === 'sliders' ? 'bg-neon text-dark border-neon shadow-[0_0_30px_rgba(0,255,204,0.3)]' : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10'}`}
                 >
-                    <Sliders size={16} /> Sliders
+                    <Sliders size={14} /> Modular Inputs
                 </button>
                 <button 
                     onClick={() => setInputMode('text')}
-                    className={`px-6 py-2 rounded-full font-bold text-sm tracking-widest uppercase transition-all flex items-center gap-2 ${inputMode === 'text' ? 'bg-purple text-white shadow-[0_0_20px_rgba(176,38,255,0.4)]' : 'bg-white/5 text-gray-400 hover:bg-white/10'}`}
+                    className={`px-8 py-3 rounded-2xl font-black text-xs tracking-widest uppercase transition-all flex items-center justify-center gap-2 border ${inputMode === 'text' ? 'bg-purple text-white border-purple shadow-[0_0_30px_rgba(176,38,255,0.3)]' : 'bg-white/5 text-gray-400 border-white/10 hover:bg-white/10'}`}
                 >
-                    <MessageSquare size={16} /> Describe Your Day
+                    <MessageSquare size={14} /> Cognitive Extraction
                 </button>
             </div>
 
-            <div className="glass-panel rounded-[2rem] p-10 relative overflow-hidden z-10 min-h-[400px]">
-                <div className="neon-border absolute inset-0 -z-10 rounded-[2rem]"></div>
-
+            <div className="glass-panel rounded-[2.5rem] p-6 md:p-12 relative overflow-hidden backdrop-blur-3xl">
                 {inputMode === 'sliders' ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-10 gap-y-10">
                         {Object.keys(habits).map((key, i) => (
                             <motion.div
-                                initial={{ opacity: 0, y: 20 }}
+                                initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: i * 0.05 }}
+                                transition={{ delay: i * 0.05 + 0.3 }}
                                 key={key}
-                                className="flex flex-col gap-3"
+                                className="flex flex-col gap-4 group"
                             >
-                                <label className="text-xs font-bold text-purple tracking-widest uppercase">{labels[key]}</label>
-                                <div className="flex items-center gap-4">
-                                    <input
-                                        type="range" min="0" max={maxes[key]} step="0.1"
-                                        value={habits[key]} onChange={e => setHabits({ ...habits, [key]: Number(e.target.value) })}
-                                        className="w-full accent-neon bg-white/10 rounded-full appearance-none h-1"
-                                    />
-                                    <span className="text-white font-mono w-8 text-right bg-white/5 py-1 px-2 rounded-md border border-white/10">
+                                <div className="flex justify-between items-end">
+                                    <label className="text-[10px] font-black text-gray-500 tracking-[0.2em] uppercase group-hover:text-purple transition-colors">{labels[key]}</label>
+                                    <span className="text-white font-mono text-sm font-bold bg-white/5 py-1 px-3 rounded-xl border border-white/10 group-hover:border-neon/30 transition-colors">
                                         {isFloatLabel(key) ? habits[key].toFixed(1) : Math.round(habits[key])}
                                     </span>
                                 </div>
+                                <input
+                                    type="range" min="0" max={maxes[key]} step="0.1"
+                                    value={habits[key]} onChange={e => setHabits({ ...habits, [key]: Number(e.target.value) })}
+                                    className="w-full accent-neon bg-white/10 rounded-full appearance-none h-1.5 cursor-pointer hover:accent-purple transition-all"
+                                />
                             </motion.div>
                         ))}
                     </div>
@@ -146,39 +164,45 @@ export default function Home() {
                     <motion.div 
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="flex flex-col h-full"
+                        className="flex flex-col h-full min-h-[300px]"
                     >
-                        <h3 className="text-xl font-bold mb-4">Just tell me about your typical day.</h3>
-                        <p className="text-gray-400 mb-6 text-sm">Example: "I usually sleep around 6 hours, try to study for 3 hours, but honestly I spend like 4 hours on TikTok. I hit the gym maybe twice a week. My diet is okay, mental health is a bit stressed, maybe a 6 out of 10."</p>
+                        <div className="mb-6">
+                             <h3 className="text-xl font-bold mb-2">Narrative Input</h3>
+                             <p className="text-gray-400 text-sm">Our AI will extract numerical habits from your natural description.</p>
+                        </div>
                         
                         <textarea 
                             value={textInput}
                             onChange={(e) => setTextInput(e.target.value)}
-                            placeholder="Describe your habits here..."
-                            className="w-full flex-1 min-h-[200px] bg-white/5 border border-white/10 rounded-xl p-4 text-white placeholder-gray-500 focus:outline-none focus:border-purple focus:ring-1 focus:ring-purple resize-none mb-6"
+                            placeholder="Example: I sleep 7 hours and study for 5..."
+                            className="w-full flex-1 min-h-[200px] bg-white/5 border border-white/10 rounded-[1.5rem] p-6 text-white placeholder-gray-600 focus:outline-none focus:border-purple/50 focus:ring-1 focus:ring-purple/50 resize-none mb-6 font-medium transition-all"
                         />
                         
                         <div className="flex justify-end">
                             <button 
                                 onClick={handleParseText}
                                 disabled={parsing || !textInput.trim()}
-                                className="px-8 py-3 bg-purple text-white font-bold tracking-widest uppercase rounded-xl text-sm transition-all hover:bg-purple/80 disabled:opacity-50 flex items-center gap-2"
+                                className="px-10 py-4 bg-purple text-white font-black tracking-widest uppercase rounded-2xl text-[10px] transition-all hover:scale-105 active:scale-95 disabled:opacity-50 flex items-center gap-2 shadow-lg"
                             >
-                                {parsing ? 'Analyzing...' : 'Extract Data'} <Sparkles size={16} />
+                                {parsing ? 'Processing Neural Data...' : 'Extract Variables'} <Sparkles size={14} />
                             </button>
                         </div>
                     </motion.div>
                 )}
             </div>
 
-            <div className="flex justify-center mt-16">
+            <div className="flex justify-center mt-12 md:mt-20">
                 <motion.button
                     onClick={handlePredict}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
-                    className="px-12 py-5 bg-white text-dark font-bold tracking-widest uppercase rounded-full text-sm shadow-[0_0_30px_rgba(255,255,255,0.3)] transition-all flex items-center gap-3 hover:shadow-[0_0_50px_rgba(0,255,204,0.6)] hover:text-neon"
+                    className="group relative px-10 md:px-16 py-5 md:py-6 bg-white text-dark font-black tracking-[0.2em] uppercase rounded-full text-xs md:text-sm shadow-2xl transition-all flex items-center gap-3 overflow-hidden"
                 >
-                    {loading ? 'Initializing Simulation...' : 'Generate Trajectory'} <ArrowRight size={18} />
+                    <div className="absolute inset-0 bg-gradient-to-r from-neon to-purple opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                    <span className="relative z-10 group-hover:text-white transition-colors">
+                        {loading ? 'Opening Time Portal...' : 'Generate Future Trajectory'}
+                    </span>
+                    <ArrowRight size={18} className="relative z-10 group-hover:text-white transition-transform group-hover:translate-x-2" />
                 </motion.button>
             </div>
         </motion.div>

@@ -21,7 +21,23 @@ export function AppProvider({ children }) {
 
     const [predictions, setPredictions] = useState(null);
     const [trajectory, setTrajectory] = useState(null);
+    const [quests, setQuests] = useState([]);
+    const [timeline, setTimeline] = useState([]);
     const [chatHistory, setChatHistory] = useState([]);
+    const [sentinelEvents, setSentinelEvents] = useState([]);
+    const [settings, setSettings] = useState(() => {
+        const saved = localStorage.getItem('futureyou_settings');
+        return saved ? JSON.parse(saved) : {
+            guardianEmail: '',
+            sentinelEnabled: true,
+            alertPrivacyLevel: 'aggregate', // aggregate | full
+            pushNotifications: true
+        };
+    });
+
+    useEffect(() => {
+        localStorage.setItem('futureyou_settings', JSON.stringify(settings));
+    }, [settings]);
     
     // Store user's custom avatar URL, persist in localStorage for simplicity
     const [avatarUrl, setAvatarUrl] = useState(() => localStorage.getItem('futureyou_avatar_url') || '');
@@ -60,8 +76,12 @@ export function AppProvider({ children }) {
             habits, setHabits,
             predictions, setPredictions,
             trajectory, setTrajectory,
+            quests, setQuests,
+            timeline, setTimeline,
             chatHistory, setChatHistory,
-            avatarUrl, setAvatarUrl
+            avatarUrl, setAvatarUrl,
+            settings, setSettings,
+            sentinelEvents, setSentinelEvents
         }}>
             {children}
         </AppContext.Provider>

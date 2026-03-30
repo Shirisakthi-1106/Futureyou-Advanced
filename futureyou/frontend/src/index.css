@@ -4,7 +4,8 @@
   --color-dark: #050508;
   --color-neon: #00ffcc;
   --color-purple: #b026ff;
-  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Outfit", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Fira Code", monospace;
 }
 
 @layer base {
@@ -12,48 +13,73 @@
     background-color: var(--color-dark);
     color: white;
     overflow-x: hidden;
+    cursor: none; /* Hide default for custom cursor */
+    scroll-behavior: smooth;
+  }
+
+  /* Re-enable for mobile as touch doesn't use cursors */
+  @media (max-width: 1024px) {
+    body {
+      cursor: auto;
+    }
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply tracking-tight font-black;
   }
 }
 
 .glass-panel {
-  background-color: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  background-color: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.5);
 }
 
-.neon-border {
-  border-color: transparent;
-  background-clip: padding-box;
-  position: relative;
+.neon-glow {
+  box-shadow: 0 0 30px rgba(0, 255, 204, 0.2);
 }
 
-.neon-border::before {
-  content: '';
-  position: absolute;
-  inset: -1px;
-  z-index: -10;
-  border-radius: 1rem;
-  background-image: linear-gradient(to right, var(--color-neon), var(--color-purple), var(--color-neon));
-  background-size: 200% 200%;
-  animation: bg-pan 4s ease infinite;
+.purple-glow {
+  box-shadow: 0 0 30px rgba(176, 38, 255, 0.2);
+}
+
+/* Custom Cursor Styles */
+.cursor-dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--color-neon);
+  border-radius: 50%;
+  pointer-events: none;
+  position: fixed;
+  z-index: 9999;
+  transition: transform 0.1s ease;
+}
+
+.cursor-outline {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--color-neon);
+  border-radius: 50%;
+  pointer-events: none;
+  position: fixed;
+  z-index: 9998;
+  transition: transform 0.15s ease-out, opacity 0.3s ease;
   opacity: 0.5;
-  filter: blur(4px);
 }
 
-.background-animate {
-  background-size: 200% 200%;
-  animation: bg-pan 4s ease infinite;
+/* Ambient Animated Gradients */
+.ambient-gradient {
+  background: radial-gradient(circle at 50% 50%, rgba(0, 255, 204, 0.05) 0%, transparent 50%);
+  animation: pulse 10s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.3; }
+  50% { transform: scale(1.5); opacity: 0.6; }
 }
 
 @keyframes bg-pan {
-
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }

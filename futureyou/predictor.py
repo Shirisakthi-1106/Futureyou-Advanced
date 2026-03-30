@@ -264,4 +264,109 @@ Be specific. Be honest. Be emotional if needed. Reference their exact numbers.
 Don't say "as an AI" or break character ever.
 Keep responses under 150 words — punchy and real.
 """
-    return context
+
+def generate_quests(insights: dict) -> list:
+    """
+    Converts SHAP insights (predictive drivers) into actionable quest cards.
+    Focuses on negative drivers (habits to improve) and positive drivers (maintain).
+    """
+    quests = []
+    
+    # Quest templates based on feature mapping
+    templates = {
+        "sleep_hours": {
+            "negative": {"title": "The Restorative Slumber", "action": "Increase nightly sleep to 8h", "icon": "Moon"},
+            "positive": {"title": "Sleep Master", "action": "Maintain your 8h+ sleep schedule", "icon": "Moon"}
+        },
+        "study_hours": {
+            "negative": {"title": "The Deep Work", "action": "Add 1.5h of focused study time", "icon": "Book"},
+            "positive": {"title": "Scholar's Path", "action": "Keep up your consistent study habits", "icon": "Book"}
+        },
+        "social_media_hours": {
+            "negative": {"title": "Digital Minimalism", "action": "Reduce social media by 1h daily", "icon": "Smartphone"},
+            "positive": {"title": "Focus Protocol", "action": "Great job keeping digital distractions low", "icon": "Smartphone"}
+        },
+        "exercise_frequency": {
+            "negative": {"title": "The Vitality Sprint", "action": "Add 2 more workout days per week", "icon": "Dumbbell"},
+            "positive": {"title": "Peak Human", "action": "Maintain your high exercise consistency", "icon": "Dumbbell"}
+        },
+        "screen_time": {
+            "negative": {"title": "Blue Light Detox", "action": "Cut screen time by 2h daily", "icon": "Monitor"},
+            "positive": {"title": "Real-World Connection", "action": "Your screen time balance is excellent", "icon": "Monitor"}
+        }
+    }
+    
+    # Process exam score drivers first as they are central
+    if "exam" in insights:
+        for insight in insights["exam"]:
+            feature = insight["feature"]
+            direction = insight["direction"]
+            impact = abs(insight["impact"])
+            
+            if feature in templates:
+                # If negative impact, suggest improvement. If positive, suggest maintenance.
+                # Actually, SHAP 'negative' for Exam Score means it HURTS the score.
+                type_key = "negative" if direction == "negative" else "positive"
+                meta = templates[feature][type_key]
+                
+                quests.append({
+                    "id": f"q_{feature}_{type_key}",
+                    "title": meta["title"],
+                    "action": meta["action"],
+                    "impact": f"{'+' if type_key == 'negative' else ''}{impact}% to Exam Performance",
+                    "impact_level": "High" if impact > 5 else "Medium",
+                    "icon": meta["icon"],
+                    "priority": impact
+                })
+    
+    # Sort by impact
+    quests = sorted(quests, key=lambda x: x["priority"], reverse=True)
+    
+    # Return top 3 unique quests
+    final_quests = []
+    seen_features = set()
+    for q in quests:
+        feat = q["id"].split("_")[1]
+        if feat not in seen_features:
+            final_quests.append(q)
+            seen_features.add(feat)
+        if len(final_quests) >= 3:
+            break
+            
+
+def generate_timeline_narrative_prompt(trajectory: dict, user_input: dict) -> str:
+    """
+    Prepares a prompt for the LLM to generate 5 year-by-year life milestones.
+    """
+    current_path = trajectory["current"]
+    
+    milestones_context = ""
+    for pt in current_path[1:]: # Skip Year 0 (Now)
+        milestones_context += f"- Year {pt['year']}: Exam Score {pt['exam_score']}, Stress {pt['stress_pct']}%, Wellbeing {pt['wellbeing_score']}/10\n"
+        
+    prompt = f"""
+You are a "Chronological Life Architect". Based on the following ML-predicted trajectory, 
+generate exactly 5 short, professional, and evocative "Life Milestones" (one for each year).
+Each milestone should be a JSON object with 'year', 'title', 'description', and 'tone' (one of: 'positive', 'neutral', 'warning').
+
+USER'S CURRENT HABITS:
+- Sleep: {user_input['sleep_hours']}h
+- Study: {user_input['study_hours']}h
+- Social Media: {user_input['social_media_hours']}h
+
+PREDICTED DATA POINTS:
+{milestones_context}
+
+RULES:
+- Be specific. Don't say "you will do well". Say "Your consistency in Year 2 leads to a breakthrough in complex problem solving."
+- Keep descriptions under 25 words.
+- Tone should reflect the stress and wellbeing scores.
+- Return ONLY a raw JSON array of 5 objects. No markdown. No backticks.
+
+Example format:
+[
+  {{"year": 1, "title": "The First Ripple", "description": "Minor adjustments to your sleep schedule start paying off in focus.", "tone": "positive"}},
+  ...
+]
+"""
+    return prompt

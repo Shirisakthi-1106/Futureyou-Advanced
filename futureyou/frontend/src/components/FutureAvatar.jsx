@@ -26,32 +26,46 @@ function HumanoidMesh({ isSpeaking, predictions, avatarUrl }) {
         });
     }, [clonedScene]);
 
+    const { wellbeing_score = 5, stress_pct = 30 } = predictions || {};
+    const isBurnout = wellbeing_score < 4 || stress_pct > 70;
+    const isStressed = stress_pct > 50;
+    const isThriving = wellbeing_score > 7;
+
     useFrame(({ clock }) => {
         const t = clock.getElapsedTime();
         
-        // Gentle idle floating and breathing animation
-        clonedScene.position.y = Math.sin(t * 1.5) * 0.02 - 1.5;
-        clonedScene.rotation.y = Math.sin(t * 0.5) * 0.05;
+        // Dynamic animation based on state
+        const breathingSpeed = isBurnout ? 0.8 : isStressed ? 2.5 : 1.5;
+        const floatAmplitude = isBurnout ? 0.01 : 0.02;
+        
+        clonedScene.position.y = Math.sin(t * breathingSpeed) * floatAmplitude - 1.5;
+        clonedScene.rotation.y = Math.sin(t * 0.5) * 0.03;
+
+        // Emotional Posture
+        if (isBurnout) {
+            clonedScene.rotation.x = THREE.MathUtils.lerp(clonedScene.rotation.x, 0.15, 0.05); // Slouching
+        } else if (isThriving) {
+            clonedScene.rotation.x = THREE.MathUtils.lerp(clonedScene.rotation.x, -0.05, 0.05); // Upright/Confident
+        } else {
+            clonedScene.rotation.x = THREE.MathUtils.lerp(clonedScene.rotation.x, 0, 0.05);
+        }
 
         // Fake Lip-Sync using jaw/viseme morph targets
         if (headRef.current && headRef.current.morphTargetInfluences) {
             const dict = headRef.current.morphTargetDictionary;
-            // Ready Player Me has 'mouthOpen' or 'viseme_O'
             const mouthOpenIdx = dict['mouthOpen'] !== undefined ? dict['mouthOpen'] : 
                                  dict['viseme_O'] !== undefined ? dict['viseme_O'] : -1;
 
             if (mouthOpenIdx !== -1) {
                 if (isSpeaking) {
-                    // Random amplitude based on time to simulate speaking syllables
-                    const rawMouth = Math.sin(t * 15) * 0.5 + 0.5; // pulses rapidly
-                    const erratic = Math.random() * 0.5;
+                    const rawMouth = Math.sin(t * 15) * 0.5 + 0.5; 
+                    const erratic = Math.random() * 0.4;
                     headRef.current.morphTargetInfluences[mouthOpenIdx] = THREE.MathUtils.lerp(
                         headRef.current.morphTargetInfluences[mouthOpenIdx], 
                         (rawMouth + erratic) * 0.8, 
                         0.5
                     );
                 } else {
-                    // Close mouth smoothly when not speaking
                     headRef.current.morphTargetInfluences[mouthOpenIdx] = THREE.MathUtils.lerp(
                         headRef.current.morphTargetInfluences[mouthOpenIdx], 
                         0, 
@@ -85,16 +99,22 @@ export default function FutureAvatar({ isSpeaking, predictions }) {
                 style={{ backgroundColor: glowColor }}
             />
             
-            <Canvas camera={{ position: [0, 0.5, 3], fov: 40 }} className="z-10">
+            <Canvas camera={{ position: [0, 0.4, 2.5], fov: 38 }} className="z-10">
                 {/* Lighting to make the avatar look realistic */}
-                <ambientLight intensity={0.6} />
-                <directionalLight position={[-5, 5, 5]} intensity={1} />
-                <pointLight position={[0, 2, 2]} intensity={0.5} color={glowColor} />
+                <ambientLight intensity={0.4} />
+                <directionalLight position={[-5, 5, 5]} intensity={0.8} />
+                
+                {/* Primary emotional light */}
+                <pointLight position={[0, 2, 2]} intensity={isSpeaking ? 1.5 : 0.8} color={glowColor} />
+                
+                {/* Rim light for depth */}
+                <spotLight position={[5, 5, -5]} intensity={0.5} color="#ffffff" angle={0.15} penumbra={1} />
+                
                 <Environment preset="city" />
                 
                 <HumanoidMesh isSpeaking={isSpeaking} predictions={predictions} avatarUrl={avatarUrl} />
                 
-                <ContactShadows resolution={512} scale={10} blur={2} opacity={0.5} far={10} color="#000000" position={[0, -1.5, 0]} />
+                <ContactShadows resolution={512} scale={10} blur={2.5} opacity={0.4} far={10} color="#000000" position={[0, -1.5, 0]} />
             </Canvas>
             
             <div className="absolute top-2 w-full text-center z-20 pointer-events-none">

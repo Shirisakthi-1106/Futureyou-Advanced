@@ -108,7 +108,18 @@ export default function Chat() {
     };
 
     return (
-        <div className="flex flex-col h-screen pt-20 pb-0 bg-dark w-full absolute inset-0 z-20">
+        <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="flex flex-col h-[calc(100vh-80px)] mt-20 pb-0 bg-dark w-full relative z-20"
+        >
+            {/* Ambient background effect */}
+            <div className="fixed inset-0 -z-10 pointer-events-none opacity-20">
+                <div className="absolute top-1/4 left-1/4 w-[30%] h-[30%] rounded-full bg-neon/30 blur-[100px]"></div>
+                <div className="absolute bottom-1/4 right-1/4 w-[30%] h-[30%] rounded-full bg-purple/30 blur-[100px]"></div>
+            </div>
             {/* Visual Avatar Anchor */}
             <div className={`w-full transition-all duration-700 ease-in-out flex-shrink-0 ${chatHistory.length === 0 ? 'h-1/2' : 'h-32 md:h-48'}`}>
                  <FutureAvatar isSpeaking={isSpeaking} predictions={predictions} />
@@ -128,13 +139,13 @@ export default function Chat() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         key={i}
-                        className={`w-full py-8 border-b border-white/5 ${msg.role === 'user' ? 'bg-transparent' : 'bg-white/[0.02]'}`}
+                        className={`w-full py-6 md:py-8 border-b border-white/5 ${msg.role === 'user' ? 'bg-transparent' : 'bg-white/[0.02]'}`}
                     >
-                        <div className="max-w-4xl mx-auto px-6 flex gap-6">
+                        <div className="max-w-4xl mx-auto px-4 md:px-6 flex gap-4 md:gap-6">
                             <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-gray-700' : 'bg-neon/20 border border-neon/50 shadow-[0_0_10px_rgba(0,255,204,0.3)]'}`}>
                                 {msg.role === 'user' ? <User size={16} className="text-white" /> : <Sparkles size={16} className="text-neon" />}
                             </div>
-                            <div className="flex-1 text-gray-200 leading-relaxed text-lg pt-1 whitespace-pre-wrap">
+                            <div className="flex-1 text-gray-200 leading-relaxed text-base md:text-lg pt-1 whitespace-pre-wrap">
                                 {msg.content}
                             </div>
                         </div>
@@ -183,6 +194,6 @@ export default function Chat() {
                     </div>
                 </div>
             </div>
-        </div>
+        </motion.div>
     );
 }

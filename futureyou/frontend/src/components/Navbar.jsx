@@ -12,6 +12,9 @@ export default function Navbar() {
     const navItems = [
         { path: '/', label: 'The Form' },
         { path: '/dashboard', label: 'Trajectory Dashboard' },
+        { path: '/simulation', label: 'Simulation' },
+        { path: '/persona', label: 'Persona Chat' },
+        { path: '/profile', label: 'Identity Hub' },
         { path: '/chat', label: 'Future Chat' }
     ];
 

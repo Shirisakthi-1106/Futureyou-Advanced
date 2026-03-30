@@ -6,9 +6,16 @@ import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 import { Navigate } from 'react-router-dom';
 import axios from 'axios';
 import AvatarCreatorModal from '../components/AvatarCreatorModal';
+import Timeline from '../components/Timeline';
+import RecoveryPlan from '../components/RecoveryPlan';
+import useSentinelNotifications from '../lib/useSentinelNotifications';
 
 export default function Dashboard() {
-    const { user, predictions, habits, trajectory, avatarUrl, setAvatarUrl } = useContext(AppContext);
+    const { user, predictions, habits, trajectory, quests, avatarUrl, setAvatarUrl } = useContext(AppContext);
+    
+    // Initialize Sentinel Notifications
+    useSentinelNotifications(user, predictions, habits);
+
     const [isCreatorOpen, setIsCreatorOpen] = useState(false);
     const [actualExamScore, setActualExamScore] = useState('');
     const [actualStressLevel, setActualStressLevel] = useState('');
@@ -69,35 +76,90 @@ export default function Dashboard() {
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="max-w-6xl mx-auto pt-32 pb-20"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="max-w-6xl mx-auto pt-24 pb-20 px-4"
         >
-            <div className="flex items-center gap-4 mb-12">
-                <div className="h-[2px] w-12 bg-neon"></div>
-                <h2 className="text-3xl font-bold tracking-tighter">Your Trajectory</h2>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+                <div className="flex items-center gap-4">
+                    <div className="h-[2px] w-12 bg-neon"></div>
+                    <h2 className="text-3xl md:text-4xl font-black tracking-tighter">Your Trajectory</h2>
+                </div>
+                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10">
+                    <div className="w-2 h-2 rounded-full bg-neon animate-pulse"></div>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-gray-400">Live Simulation Active</span>
+                </div>
             </div>
 
+            {/* NEW: Habit Quests Section */}
+            {quests && quests.length > 0 && (
+                <div className="mb-12">
+                    <div className="flex items-center gap-3 mb-6">
+                        <Sparkles className="text-neon" size={24} />
+                        <h2 className="text-xl font-bold tracking-tighter">Active Optimization Quests</h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {quests.map((quest, i) => (
+                            <motion.div
+                                key={quest.id}
+                                initial={{ opacity: 0, x: -20 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                transition={{ delay: i * 0.1 }}
+                                whileHover={{ scale: 1.02 }}
+                                className="glass-panel p-6 rounded-2xl border border-neon/20 bg-neon/5 relative overflow-hidden group"
+                            >
+                                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                                    <Brain size={80} className="text-neon" />
+                                </div>
+                                <div className="flex flex-col h-full z-10 relative">
+                                    <div className="flex justify-between items-start mb-4">
+                                        <span className="px-3 py-1 rounded-full bg-neon text-dark text-[10px] font-black uppercase tracking-widest">
+                                            {quest.impact_level} Impact
+                                        </span>
+                                        <div className="text-neon">
+                                            <Sparkles size={20} />
+                                        </div>
+                                    </div>
+                                    <h4 className="text-lg font-bold mb-1">{quest.title}</h4>
+                                    <p className="text-sm text-gray-400 mb-4">{quest.action}</p>
+                                    <div className="mt-auto pt-4 border-t border-white/10">
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-gray-500 uppercase tracking-tighter">Potential Gain</span>
+                                            <span className="text-neon font-mono font-bold">{quest.impact}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </motion.div>
+                        ))}
+                    </div>
+                    
+                    {/* NEW: Recovery Plan integration */}
+                    <RecoveryPlan quests={quests} predictions={predictions} />
+                </div>
+            )}
+
             {/* Metrics Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
                 {[
-                    { label: "Academic Projection", val: predictions.exam_score.toFixed(1), icon: <Brain size={32} />, color: "text-neon" },
-                    { label: "Dropout Risk", val: predictions.dropout_prob.toFixed(1) + "%", color: predictions.dropout_prob > 20 ? "text-red-400" : "text-neon", icon: <Activity size={32} /> },
-                    { label: "Stress Level", val: predictions.stress_pct.toFixed(1) + "%", color: predictions.stress_pct > 50 ? "text-red-400" : "text-purple", icon: <Clock size={32} /> },
-                    { label: "Overall Wellbeing", val: predictions.wellbeing_score.toFixed(1), color: "text-green-400", icon: <Sparkles size={32} /> },
+                    { label: "Academic Projection", val: predictions.exam_score.toFixed(1), icon: <Brain size={28} />, color: "text-neon", glow: "shadow-[0_0_20px_rgba(0,255,204,0.2)]" },
+                    { label: "Dropout Risk", val: predictions.dropout_prob.toFixed(1) + "%", color: predictions.dropout_prob > 20 ? "text-red-400" : "text-neon", icon: <Activity size={28} />, glow: predictions.dropout_prob > 20 ? "shadow-[0_0_20px_rgba(239,68,68,0.2)]" : "shadow-[0_0_20px_rgba(0,255,204,0.2)]" },
+                    { label: "Stress Level", val: predictions.stress_pct.toFixed(1) + "%", color: predictions.stress_pct > 50 ? "text-red-400" : "text-purple", icon: <Clock size={28} />, glow: "shadow-[0_0_20px_rgba(176,38,255,0.2)]" },
+                    { label: "Overall Wellbeing", val: predictions.wellbeing_score.toFixed(1), color: "text-green-400", icon: <Sparkles size={28} />, glow: "shadow-[0_0_20px_rgba(74,222,128,0.2)]" },
                 ].map((stat, i) => (
                     <motion.div
                         key={i}
-                        initial={{ opacity: 0, scale: 0.9 }}
-                        animate={{ opacity: 1, scale: 1 }}
+                        initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ delay: i * 0.1 }}
-                        className="glass-panel p-8 rounded-[2rem] flex flex-col items-center text-center gap-4 group hover:-translate-y-2 transition-transform duration-300"
+                        whileHover={{ y: -5 }}
+                        className={`glass-panel p-8 rounded-[2.5rem] flex flex-col items-center text-center gap-4 group transition-all duration-300 ${stat.glow}`}
                     >
-                        <div className={`p-4 rounded-full bg-white/5 ${stat.color} shadow-[0_0_20px_inherit] group-hover:scale-110 transition-transform`}>{stat.icon}</div>
+                        <div className={`p-5 rounded-3xl bg-white/5 ${stat.color} group-hover:scale-110 transition-transform duration-500`}>{stat.icon}</div>
                         <div>
-                            <h3 className="text-5xl font-mono font-bold tracking-tighter mb-2">{stat.val}</h3>
-                            <p className="text-xs tracking-widest text-gray-400 uppercase">{stat.label}</p>
+                            <h3 className="text-5xl font-mono font-black tracking-tighter mb-2 italic">{stat.val}</h3>
+                            <p className="text-[10px] tracking-[0.2em] font-black text-gray-500 uppercase">{stat.label}</p>
                         </div>
                     </motion.div>
                 ))}
@@ -109,37 +171,48 @@ export default function Dashboard() {
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.3 }}
-                    className="glass-panel p-8 rounded-[2rem] mb-12"
+                    className="glass-panel p-8 md:p-10 rounded-[2.5rem] mb-12 border border-neon/10"
                 >
-                    <div className="flex items-center gap-3 mb-6">
+                    <div className="flex items-center gap-3 mb-8">
                         <Sparkles className="text-neon" size={24} />
-                        <h3 className="text-xl font-bold tracking-tighter">AI Insights (Why did I get this prediction?)</h3>
+                        <h3 className="text-xl font-black tracking-tighter">Neural Insights (Model Explainability)</h3>
                     </div>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {[
                             { title: "Academic Performance", data: predictions.insights.exam },
                             { title: "Dropout Risk", data: predictions.insights.dropout },
-                            { title: "Stress Level", data: predictions.insights.stress }
+                            { title: "Stress level", data: predictions.insights.stress }
                         ].map((model, idx) => (
-                            <div key={idx} className="bg-white/5 rounded-xl p-6 border border-white/10">
-                                <h4 className="text-sm font-bold tracking-widest text-gray-400 uppercase mb-4">{model.title} Drivers</h4>
-                                <div className="flex flex-col gap-3">
+                            <div key={idx} className="bg-white/3 rounded-2xl p-6 border border-white/5 hover:border-white/10 transition-colors">
+                                <h4 className="text-[10px] font-black tracking-[0.2em] text-gray-500 uppercase mb-5">{model.title}</h4>
+                                <div className="flex flex-col gap-4">
                                     {model.data?.map((insight, i) => (
                                         <div key={i} className="flex justify-between items-center text-sm">
-                                            <span className="text-gray-300 capitalize">{insight.feature.replace(/_/g, ' ')}</span>
-                                            <span className={`font-mono font-bold ${insight.direction === 'positive' ? 'text-green-400' : 'text-red-400'}`}>
-                                                {insight.direction === 'positive' ? '+' : '-'}{insight.impact}%
-                                            </span>
+                                            <span className="text-gray-400 capitalize text-xs font-medium">{insight.feature.replace(/_/g, ' ')}</span>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`h-1 w-8 rounded-full ${insight.direction === 'positive' ? 'bg-green-400/20' : 'bg-red-400/20'}`}>
+                                                    <div 
+                                                        className={`h-full rounded-full ${insight.direction === 'positive' ? 'bg-green-400' : 'bg-red-400'}`} 
+                                                        style={{ width: `${Math.min(100, insight.impact * 5)}%` }}
+                                                    ></div>
+                                                </div>
+                                                <span className={`font-mono font-bold text-xs ${insight.direction === 'positive' ? 'text-green-400' : 'text-red-400'}`}>
+                                                    {insight.direction === 'positive' ? '+' : '-'}{insight.impact.toFixed(1)}%
+                                                </span>
+                                            </div>
                                         </div>
                                     ))}
-                                    {(!model.data || model.data.length === 0) && <p className="text-xs text-gray-500">No major factors identified.</p>}
+                                    {(!model.data || model.data.length === 0) && <p className="text-xs text-gray-600 italic">Static or background variables only.</p>}
                                 </div>
                             </div>
                         ))}
                     </div>
                 </motion.div>
             )}
+
+            {/* Timeline: The Path Ahead */}
+            {timeline && timeline.length > 0 && <Timeline milestones={timeline} />}
 
             {/* Multiverse Trajectory Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">

@@ -3,8 +3,10 @@ from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import requests
+import json
+import datetime
 from dotenv import load_dotenv
-from predictor import load_models, predict_all, generate_trajectory, build_future_context
+from predictor import load_models, predict_all, generate_trajectory, build_future_context, generate_quests, generate_timeline_narrative_prompt
 
 load_dotenv()
 
@@ -74,6 +76,13 @@ class ChatRequest(BaseModel):
     message: str
     history: list[ChatMessage] = []
 
+class PersonaChatRequest(BaseModel):
+    persona_id: str
+    system_prompt: str
+    message: str
+    history: list[ChatMessage] = []
+    user_input: UserInput
+
 @app.on_event("startup")
 async def startup_event():
     global models
@@ -93,6 +102,60 @@ def get_predictions(data: UserInput):
     predictions = predict_all(models, ui_dict)
     trajectory = generate_trajectory(models, ui_dict, years=ui_dict.get("years_ahead", 5))
     
+    # Generate Quests from SHAP insights
+    quests = generate_quests(predictions.get("insights", {}))
+    
+    # Generate Timeline Story-driven Milestones
+    timeline_prompt = generate_timeline_narrative_prompt(trajectory, ui_dict)
+    groq_key = os.getenv("GROQ_API_KEY")
+    timeline_items = []
+    
+    if groq_key:
+        try:
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {groq_key}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "llama-3.3-70b-versatile",
+                    "messages": [
+                        {"role": "system", "content": "You are a professional life architect. Return only JSON arrays of milestones."},
+                        {"role": "user", "content": timeline_prompt}
+                    ],
+                    "response_format": {"type": "json_object"},
+                    "max_tokens": 800,
+                    "temperature": 0.3,
+                },
+                timeout=20
+            )
+            data_resp = resp.json()
+            if "choices" in data_resp:
+                raw_content = data_resp["choices"][0]["message"]["content"]
+                try:
+                    parsed = json.loads(raw_content)
+                    if isinstance(parsed, list):
+                        timeline_items = parsed
+                    elif isinstance(parsed, dict):
+                        # Handle if it wrapped in a key like "milestones"
+                        for key in ["milestones", "timeline", "years"]:
+                            if key in parsed and isinstance(parsed[key], list):
+                                timeline_items = parsed[key]
+                                break
+                        if not timeline_items and len(parsed) > 0:
+                            # Just take the first list we find
+                            for v in parsed.values():
+                                if isinstance(v, list):
+                                    timeline_items = v
+                                    break
+                except Exception as e:
+                    print(f"JSON Parse Error in Timeline: {e}")
+                    timeline_items = []
+        except Exception as e:
+            print(f"Groq API Error in Timeline: {e}")
+            timeline_items = []
+
     # Save to agentic memory
     if data.user_id != "anonymous":
         save_to_memory(data.user_id, {
@@ -104,7 +167,9 @@ def get_predictions(data: UserInput):
     
     return {
         "predictions": predictions,
-        "trajectory": trajectory
+        "trajectory": trajectory,
+        "quests": quests,
+        "timeline": timeline_items
     }
 
 @app.post("/chat")
@@ -274,3 +339,40 @@ def log_feedback(data: FeedbackInput):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/persona-chat")
+def persona_chat(req: PersonaChatRequest):
+    groq_key = os.getenv("GROQ_API_KEY")
+    if not groq_key:
+        raise HTTPException(status_code=400, detail="GROQ_API_KEY environment variable is not set")
+    
+    messages = [{"role": "system", "content": req.system_prompt}]
+    for h in req.history[-6:]:
+        role = "assistant" if h.role == "persona" else h.role
+        messages.append({"role": role, "content": h.content})
+    
+    messages.append({"role": "user", "content": req.message})
+
+    try:
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {groq_key}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": messages,
+                "max_tokens": 250,
+                "temperature": 0.8,
+            },
+            timeout=15
+        )
+        data = resp.json()
+        if "choices" in data:
+            reply = data["choices"][0]["message"]["content"]
+            return {"reply": reply}
+        else:
+            raise HTTPException(status_code=500, detail=f"Groq API Error: {data.get('error', {}).get('message', 'Unknown error')}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Connection error: {str(e)}")
