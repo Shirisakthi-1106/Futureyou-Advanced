@@ -1,11 +1,14 @@
-import { createContext, useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
+import { createContext, useState, useEffect, useRef } from "react";
+import { auth, db } from "../firebase";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import { doc, getDoc, setDoc, onSnapshot } from "firebase/firestore";
 
 export const AppContext = createContext();
 
 export function AppProvider({ children }) {
     const [user, setUser] = useState(null);
     const [authLoading, setAuthLoading] = useState(true);
+    const isSyncing = useRef(false);
 
     const [habits, setHabits] = useState({
         sleep_hours: 6.5,
@@ -35,80 +38,99 @@ export function AppProvider({ children }) {
     const [timeline, setTimeline] = useState([]);
     const [chatHistory, setChatHistory] = useState([]);
     const [sentinelEvents, setSentinelEvents] = useState([]);
+    
+    // --- SETTINGS STATE ---
     const [settings, setSettings] = useState(() => {
         const saved = localStorage.getItem("futureyou_settings");
         const defaults = {
-            guardianEmail: "",       // Legacy single email (still supported)
-            guardianEmails: [],      // Multi-recipient email list
+            guardianEmail: "",
+            guardianEmails: [],
             guardianName: "Guardian",
             sentinelEnabled: true,
-            alertPrivacyLevel: "aggregate", // aggregate | full
+            alertPrivacyLevel: "aggregate",
             pushNotifications: true,
-            // Voice Settings
             voiceEnabled: true,
             voiceAutoplay: true,
-            voiceGender: "auto", // auto | male | female | neutral
+            voiceGender: "auto",
         };
         if (saved) {
-            const parsed = JSON.parse(saved);
-            // Ensure guardianEmails array exists even for old saves
-            if (!parsed.guardianEmails) parsed.guardianEmails = [];
-            return { ...defaults, ...parsed };
+            try {
+                const parsed = JSON.parse(saved);
+                if (!parsed.guardianEmails) parsed.guardianEmails = [];
+                return { ...defaults, ...parsed };
+            } catch { return defaults; }
         }
         return defaults;
     });
 
-    useEffect(() => {
-        localStorage.setItem("futureyou_settings", JSON.stringify(settings));
-    }, [settings]);
-    
-    // Avatar Selection State
+    // --- AVATAR STATE ---
     const [selectedAvatar, setSelectedAvatar] = useState(() => {
         const saved = localStorage.getItem("futureyou_selected_avatar");
-        return saved ? JSON.parse(saved) : {
-            name: "Alucard",
-            path: "/avatars/alucard.glb",
-            gender: "male"
-        };
+        try {
+            return saved ? JSON.parse(saved) : {
+                name: "Alucard",
+                path: "/avatars/alucard.glb",
+                gender: "male"
+            };
+        } catch {
+            return { name: "Alucard", path: "/avatars/alucard.glb", gender: "male" };
+        }
     });
+
+    // --- PERSISTENCE LOGIC (LOCAL) ---
+    useEffect(() => {
+        localStorage.setItem("futureyou_settings", JSON.stringify(settings));
+        if (user?.uid && !isSyncing.current) {
+            // Save to Firestore if real user
+            setDoc(doc(db, "configs", user.uid), { settings }, { merge: true }).catch(console.error);
+        }
+    }, [settings, user]);
 
     useEffect(() => {
         localStorage.setItem("futureyou_selected_avatar", JSON.stringify(selectedAvatar));
-    }, [selectedAvatar]);
-    
-    // Compatibility layer for components still using avatarUrl
-    const avatarUrl = selectedAvatar.path;
-    const setAvatarUrl = (path) => {
-         // This is a legacy setter, we should prefer setSelectedAvatar
-         setSelectedAvatar(prev => ({ ...prev, path }));
-    };
-
-    // Persist predictions, trajectory, and habits to localStorage for GuardianPortal
-    useEffect(() => {
-        if (predictions) {
-            localStorage.setItem("futureyou_predictions", JSON.stringify(predictions));
+        if (user?.uid && !isSyncing.current) {
+            // Save to Firestore if real user
+            setDoc(doc(db, "configs", user.uid), { selectedAvatar }, { merge: true }).catch(console.error);
         }
+    }, [selectedAvatar, user]);
+
+    useEffect(() => {
+        if (predictions) localStorage.setItem("futureyou_predictions", JSON.stringify(predictions));
     }, [predictions]);
 
     useEffect(() => {
-        if (trajectory) {
-            localStorage.setItem("futureyou_trajectory", JSON.stringify(trajectory));
-        }
+        if (trajectory) localStorage.setItem("futureyou_trajectory", JSON.stringify(trajectory));
     }, [trajectory]);
 
     useEffect(() => {
-        if (habits) {
-            localStorage.setItem("futureyou_habits", JSON.stringify(habits));
-        }
+        if (habits) localStorage.setItem("futureyou_habits", JSON.stringify(habits));
     }, [habits]);
+
+    // --- FIREBASE SYNC (FETCH) ---
+    useEffect(() => {
+        if (user && !user.isDemo) {
+            isSyncing.current = true;
+            getDoc(doc(db, "configs", user.uid)).then(docSnap => {
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    if (data.settings) setSettings(data.settings);
+                    if (data.selectedAvatar) setSelectedAvatar(data.selectedAvatar);
+                }
+                isSyncing.current = false;
+            }).catch(err => {
+                console.error("Firestore sync error:", err);
+                isSyncing.current = false;
+            });
+        }
+    }, [user]);
 
     const [isAuthOpen, setIsAuthOpen] = useState(false);
 
     const loginDemoUser = (customUser) => {
         const demoUser = customUser || {
-            id: "demo-user",
+            uid: "demo-user",
             email: "demo@futureyou.local",
-            name: "Demo User",
+            displayName: "Demo User",
             isDemo: true
         };
         localStorage.setItem("futureyou_demo_user", JSON.stringify(demoUser));
@@ -119,37 +141,35 @@ export function AppProvider({ children }) {
     const logoutUser = async () => {
         localStorage.removeItem("futureyou_demo_user");
         setUser(null);
-        await supabase.auth.signOut();
+        await signOut(auth);
     };
 
+    // --- SESSION INITIALIZATION ---
     useEffect(() => {
-        const checkAuth = async () => {
-            const demoUser = localStorage.getItem("futureyou_demo_user");
-            if (demoUser) {
+        const demoUser = localStorage.getItem("futureyou_demo_user");
+        if (demoUser) {
+            try {
                 setUser(JSON.parse(demoUser));
                 setAuthLoading(false);
-                return;
+            } catch {
+                localStorage.removeItem("futureyou_demo_user");
             }
+        }
 
-            const { data: { session } } = await supabase.auth.getSession();
+        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+            // If we have a demo user, ignore firebase state unless manually asked
             if (!localStorage.getItem("futureyou_demo_user")) {
-                setUser(session?.user || null);
+                setUser(firebaseUser);
+                if (firebaseUser) setIsAuthOpen(false);
             }
             setAuthLoading(false);
-        };
-        checkAuth();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (!localStorage.getItem("futureyou_demo_user")) {
-                setUser(session?.user || null);
-                if (session?.user) {
-                    setIsAuthOpen(false);
-                }
-            }
         });
 
-        return () => subscription.unsubscribe();
+        return () => unsubscribe();
     }, []);
+
+    const avatarUrl = selectedAvatar?.path || "/avatars/alucard.glb";
+    const setAvatarUrl = (path) => setSelectedAvatar(prev => ({ ...prev, path }));
 
     return (
         <AppContext.Provider value={{

@@ -1,5 +1,6 @@
 import { useState, useContext } from "react";
-import { supabase } from "../lib/supabase";
+import { auth } from "../firebase";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 import { AppContext } from "../context/AppContext";
@@ -23,89 +24,54 @@ export default function AuthModal({ isOpen, onClose }) {
 
         try {
             if (isLogin) {
-                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-                if (error) {
-                    // Rate limit or unverified email → auto-fallback to demo mode
-                    if (isRateLimitOrVerificationError(error.message)) {
-                        console.warn("Supabase Auth limited — switching to local auth mode.");
-                        setMessage("Server rate-limited. Logging you in locally...");
-                        setTimeout(() => {
-                            loginAsLocalUser(email);
-                            navigate("/dashboard");
-                        }, 800);
-                        return;
-                    }
-                    throw error;
-                }
+                await signInWithEmailAndPassword(auth, email, password);
                 onClose();
                 navigate("/dashboard");
             } else {
-                const { data, error } = await supabase.auth.signUp({ email, password });
-                if (error) {
-                    if (isRateLimitOrVerificationError(error.message)) {
-                        console.warn("Supabase Auth limited — creating local profile.");
-                        setMessage("Server rate-limited. Creating local profile...");
-                        setTimeout(() => {
-                            loginAsLocalUser(email);
-                            navigate("/dashboard");
-                        }, 800);
-                        return;
-                    }
-                    throw error;
-                }
-
-                if (data?.session === null) {
-                    // Email verification is pending — but we bypass it for hackathon/demo
-                    setMessage("Profile created! Syncing your timeline...");
-                    setTimeout(() => {
-                        loginAsLocalUser(email);
-                        navigate("/dashboard");
-                    }, 800);
-                } else {
-                    setMessage("Timeline Initialized. Future Sync Complete.");
-                    setTimeout(() => {
-                        onClose();
-                        navigate("/dashboard");
-                    }, 1500);
-                }
+                await createUserWithEmailAndPassword(auth, email, password);
+                setMessage("Timeline Initialized. Future Sync Complete.");
+                setTimeout(() => {
+                    onClose();
+                    navigate("/dashboard");
+                }, 1500);
             }
         } catch (err) {
+            console.error("Auth Error:", err);
             const msg = err.message || "Unknown error";
-            if (msg.includes("Invalid login credentials")) {
-                setError("Invalid email or password. Please try again or create a new profile.");
-            } else if (msg.includes("User already registered")) {
-                setError("This email is already registered. Try logging in instead.");
-            } else if (msg.includes("Password should be at least")) {
-                setError("Password must be at least 6 characters.");
-            } else if (msg.includes("invalid") && msg.includes("email")) {
-                setError("Please enter a valid email address.");
+            
+            // Auto-fallback strategy for demo-friendliness
+            if (msg.includes("network-request-failed") || msg.includes("quota-exceeded")) {
+                console.warn("Auth issue — switching to local mode.");
+                setMessage("Sync limited. Logging you in locally...");
+                setTimeout(() => {
+                    loginAsLocalUser(email);
+                    navigate("/dashboard");
+                }, 800);
+                return;
+            }
+
+            if (msg.includes("auth/invalid-credential") || msg.includes("auth/user-not-found") || msg.includes("auth/wrong-password")) {
+                setError("Invalid coordinates. Please verify your email and security key.");
+            } else if (msg.includes("auth/email-already-in-use")) {
+                setError("This email is already linked to a timeline. Try authenticating.");
+            } else if (msg.includes("auth/weak-password")) {
+                setError("Security key too weak. Use at least 6 characters.");
             } else {
-                setError(msg);
+                setError(msg.replace("Firebase: ", ""));
             }
         } finally {
             setLoading(false);
         }
     };
 
-    // Check if a Supabase error is a rate limit or email verification issue
-    const isRateLimitOrVerificationError = (msg) => {
-        if (!msg) return false;
-        const lower = msg.toLowerCase();
-        return lower.includes("rate limit") ||
-               lower.includes("rate_limit") ||
-               lower.includes("email not confirmed") ||
-               lower.includes("email_send_rate") ||
-               lower.includes("over_email_send");
-    };
-
-    // Create a local user profile (independent of Supabase)
-    // This allows the app to work even when Supabase is unavailable or rate-limited
+    // Create a local user profile (independent of Firebase)
     const loginAsLocalUser = (userEmail) => {
         const localUser = {
-            id: `local-${btoa(userEmail).replace(/[=+/]/g, '').slice(0, 16)}`,
+            uid: `local-${btoa(userEmail).replace(/[=+/]/g, '').slice(0, 16)}`,
             email: userEmail,
-            name: userEmail.split("@")[0],
-            isLocal: true
+            displayName: userEmail.split("@")[0],
+            isLocal: true,
+            isDemo: true
         };
         localStorage.setItem("futureyou_demo_user", JSON.stringify(localUser));
         loginDemoUser(localUser);
