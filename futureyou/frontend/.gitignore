@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+futureyou/.venv/
+futureyou/frontend/node_modules/
+futureyou/__pycache__/
+*.pyc
+.env
+.env.local
+
