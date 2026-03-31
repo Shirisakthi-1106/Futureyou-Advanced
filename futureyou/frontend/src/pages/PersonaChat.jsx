@@ -1,9 +1,11 @@
-import { useContext, useState, useRef, useEffect } from 'react';
+import { useContext, useState, useRef, useEffect, useMemo } from 'react';
 import { AppContext } from '../context/AppContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Send, Sparkles, User, Zap, TrendingDown } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
+import { Send, Sparkles, User, Zap, TrendingDown, Volume2, Brain } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
+import FutureAvatarPanel from '../components/FutureAvatarPanel';
+import { useAvatarVoice } from '../lib/useAvatarVoice';
 
 const PERSONAS = [
     {
@@ -17,31 +19,25 @@ const PERSONAS = [
         icon: <User size={18} />,
         systemPrompt: (user_input, predictions) => `
 You are the PRESENT SELF of the user. You are self-aware, analytical, and slightly anxious.
-You know your current stats exactly:
-- Sleep: ${user_input?.sleep_hours}h, Study: ${user_input?.study_hours}h, Social Media: ${user_input?.social_media_hours}h
-- ML Prediction: Exam Score ${predictions?.exam_score}, Stress ${predictions?.stress_pct}%, Wellbeing ${predictions?.wellbeing_score}/10
-Speak in first person ("I", "my") as if you are the user RIGHT NOW. Be direct, factual, and slightly defensive. 
-You know things are not perfect. You're aware but haven't changed yet. Max 120 words.
+Current stats: Sleep ${user_input?.sleep_hours}h, Study ${user_input?.study_hours}h.
+Predicted Score: ${predictions?.exam_score}. Speak in first person. Be direct, factual, and slightly defensive. Max 100 words.
 `,
     },
     {
         id: 'future',
         label: 'Future You',
-        subtitle: 'Optimized · 5 Years On',
+        subtitle: 'Optimized Path · 5 Years On',
         color: '#00ffcc',
         glowColor: 'rgba(0,255,204,0.2)',
         borderColor: 'border-neon/30',
         bgColor: 'bg-neon/5',
         icon: <Sparkles size={18} />,
         systemPrompt: (user_input, predictions, trajectory) => {
-            const optimized5yr = trajectory?.optimized?.[5];
+            const optimized5yr = trajectory?.optimized?.[5] || trajectory?.optimized?.[trajectory.optimized.length - 1];
             return `
-You are the OPTIMIZED FUTURE SELF of the user, speaking from 5 years ahead.
-You FIXED your habits. You went from ${user_input?.sleep_hours}h sleep to 8h, 
-from ${user_input?.study_hours}h study to structured 6h blocks.
-Your current stats (5 years from now): Exam Score ${optimized5yr?.exam_score}, 
-Stress ${optimized5yr?.stress_pct}%, Wellbeing ${optimized5yr?.wellbeing_score}/10.
-Speak warmly but specifically. You're proud but empathetic. Reference the exact journey. Max 120 words.
+You are the OPTIMIZED FUTURE SELF of the user, 5 years ahead.
+Stats: Score ${optimized5yr?.exam_score}, Stress ${optimized5yr?.stress_pct}%.
+You fixed your habits. Speak warmly but specifically. Max 100 words.
 `;
         },
     },
@@ -55,35 +51,53 @@ Speak warmly but specifically. You're proud but empathetic. Reference the exact 
         bgColor: 'bg-red-950/10',
         icon: <TrendingDown size={18} />,
         systemPrompt: (user_input, predictions, trajectory) => {
-            const declining5yr = trajectory?.declining?.[5];
+            const declining5yr = trajectory?.declining?.[5] || trajectory?.declining?.[trajectory.declining.length - 1];
             return `
 You are the BURNOUT SELF of the user — 5 years in the future where nothing changed.
-Sleep stayed at ${user_input?.sleep_hours}h, stress kept rising, motivation collapsed.
-Your current stats: Exam Score ${declining5yr?.exam_score}, 
-Stress ${declining5yr?.stress_pct}%, Wellbeing ${declining5yr?.wellbeing_score}/10.
-Speak with exhaustion and regret. You're not angry — just tired and honest. 
-Warn them, but don't lecture. Be real. Max 120 words.
+Stats: Score ${declining5yr?.exam_score}, Stress ${declining5yr?.stress_pct}%.
+Speak with exhaustion and regret. Warn them. Max 100 words.
 `;
         },
     },
 ];
 
+const DataMissingFallback = () => (
+    <div className="h-[70vh] flex flex-col items-center justify-center text-center px-4 pt-32">
+        <div className="w-20 h-20 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mb-6 text-gray-500">
+            <Brain size={40} className="opacity-20" />
+        </div>
+        <h2 className="text-3xl font-black tracking-tighter mb-4">Neural Identity Fragmented</h2>
+        <p className="text-gray-400 max-w-sm mb-8 font-medium">We haven't projected your multi-persona profiles yet. Complete the form to initialize your conversational simulacra.</p>
+        <Link to="/" className="px-10 py-4 bg-neon text-dark font-black tracking-widest uppercase rounded-2xl text-[10px] transition-all hover:scale-105 active:scale-95 shadow-lg flex items-center gap-2">
+            Initialize Personality Matrix <Zap size={14} />
+        </Link>
+    </div>
+);
+
 export default function PersonaChat() {
-    const { user, predictions, habits, trajectory } = useContext(AppContext);
+    const { user, predictions, habits, trajectory, settings } = useContext(AppContext);
     const [activePersona, setActivePersona] = useState('future');
     const [chatsByPersona, setChatsByPersona] = useState({ present: [], future: [], burnout: [] });
     const [input, setInput] = useState('');
     const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef(null);
+    const { isSpeaking, playVoice, stopVoice } = useAvatarVoice();
+
+    useEffect(() => {
+        stopVoice();
+    }, [activePersona, stopVoice]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [chatsByPersona, loading]);
 
-    if (!user || !predictions) return <Navigate to="/" />;
+    // STABILITY: Remove forced redirect
+    const persona = useMemo(() => PERSONAS.find(p => p.id === activePersona), [activePersona]);
+    const currentChat = useMemo(() => chatsByPersona[activePersona], [chatsByPersona, activePersona]);
 
-    const persona = PERSONAS.find(p => p.id === activePersona);
-    const currentChat = chatsByPersona[activePersona];
+    if (!user || !predictions || !trajectory) {
+        return <DataMissingFallback />;
+    }
 
     const handleSend = async (e) => {
         e.preventDefault();
@@ -107,7 +121,18 @@ export default function PersonaChat() {
                     system_prompt: systemPrompt,
                     message: input,
                     history: currentChat,
-                    user_input: habits,
+                    user_input: {
+                        user_id: user?.id || 'anonymous',
+                        sleep_hours: Number(habits.sleep_hours),
+                        study_hours: Number(habits.study_hours),
+                        screen_time: Number(habits.screen_time),
+                        social_media_hours: Number(habits.social_media_hours),
+                        exercise_frequency: Math.round(habits.exercise_frequency),
+                        mood_score: Math.round(habits.mood_score),
+                        diet_quality: Math.round(habits.diet_quality),
+                        mental_health_rating: Math.round(habits.mental_health_rating),
+                        years_ahead: Math.round(habits.years_ahead)
+                    },
                 }
             );
             const reply = { role: 'persona', content: response.data.reply };
@@ -115,157 +140,84 @@ export default function PersonaChat() {
                 ...prev,
                 [activePersona]: [...newHistory, reply]
             }));
+
+            if (settings.voiceAutoplay) {
+                playVoice(reply.content, activePersona);
+            }
         } catch (err) {
             console.error(err);
             setChatsByPersona(prev => ({
                 ...prev,
-                [activePersona]: [...newHistory, { role: 'persona', content: 'Connection issue. Make sure the backend is running.' }]
+                [activePersona]: [...newHistory, { role: 'persona', content: 'Neural link failed. Ensure terminal is active.' }]
             }));
         }
         setLoading(false);
     };
 
     return (
-        <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.6, ease: 'easeOut' }}
-            className="flex flex-col h-[calc(100vh-80px)] mt-20 bg-dark w-full relative z-20"
-        >
-            {/* Ambient glow based on persona */}
-            <div
-                className="fixed inset-0 -z-10 pointer-events-none transition-all duration-700"
-                style={{ background: `radial-gradient(ellipse at 50% 30%, ${persona.glowColor} 0%, transparent 60%)` }}
-            />
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="h-[100vh] pt-20 bg-dark overflow-hidden flex flex-col">
+            <div className="max-w-[1500px] mx-auto w-full flex-1 flex flex-col md:flex-row p-4 md:p-8 gap-8 h-full overflow-hidden">
+                
+                <div className="flex-1 flex flex-col h-full bg-white/[0.01] border border-white/5 rounded-[2.5rem] relative overflow-hidden order-2 md:order-1">
+                    <div className="flex-shrink-0 bg-white/2 border-b border-white/5 px-8 pt-4">
+                        <div className="flex flex-wrap gap-2 justify-center">
+                            {PERSONAS.map(p => (
+                                <button
+                                    key={p.id}
+                                    onClick={() => setActivePersona(p.id)}
+                                    className={`px-6 py-4 rounded-t-3xl text-[9px] font-black uppercase tracking-widest transition-all ${
+                                        activePersona === p.id ? `bg-white/5 opacity-100` : 'text-gray-600 opacity-60 hover:opacity-100'
+                                    }`}
+                                    style={activePersona === p.id ? { color: p.color, borderBottom: `2px solid ${p.color}` } : {}}
+                                >
+                                    {p.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
 
-            {/* Persona Tabs */}
-            <div className="flex-shrink-0 border-b border-white/5 bg-dark/80 backdrop-blur-xl">
-                <div className="max-w-3xl mx-auto px-4 pt-4 pb-0">
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-600 mb-3 text-center">Choose Your Self To Speak With</p>
-                    <div className="flex gap-2 justify-center">
-                        {PERSONAS.map(p => (
-                            <button
-                                key={p.id}
-                                onClick={() => setActivePersona(p.id)}
-                                className={`flex items-center gap-2 px-5 py-2.5 rounded-t-2xl text-xs font-black uppercase tracking-wider border-b-2 transition-all ${
-                                    activePersona === p.id
-                                        ? `border-b-2 bg-white/5`
-                                        : 'border-transparent text-gray-500 hover:text-gray-300'
-                                }`}
-                                style={activePersona === p.id ? { borderColor: p.color, color: p.color } : {}}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
+                        {currentChat.map((msg, i) => (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                key={i}
+                                className={`flex gap-4 max-w-2xl ${msg.role === 'user' ? 'ml-auto flex-row-reverse text-right' : 'mr-auto'}`}
                             >
-                                <span style={activePersona === p.id ? { color: p.color } : {}}>{p.icon}</span>
-                                <span className="hidden sm:inline">{p.label}</span>
-                            </button>
+                                <div className="p-5 rounded-[2rem] text-sm leading-relaxed relative group bg-white/[0.03] border border-white/5">
+                                    {msg.content}
+                                    {msg.role === 'persona' && (
+                                        <button onClick={() => playVoice(msg.content, activePersona)} className="absolute -right-10 top-1/2 -translate-y-1/2 p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-gray-500">
+                                            <Volume2 size={14} />
+                                        </button>
+                                    )}
+                                </div>
+                            </motion.div>
                         ))}
                     </div>
+
+                    <div className="p-6 bg-gradient-to-t from-black/20 to-transparent">
+                        <form onSubmit={handleSend} className="relative">
+                            <input
+                                value={input}
+                                onChange={e => setInput(e.target.value)}
+                                placeholder={`Querying ${persona.label.toLowerCase()}...`}
+                                className="w-full bg-white/5 border border-white/10 rounded-[2rem] px-8 py-5 pr-16 text-white active:outline-none focus:outline-none focus:border-neon transition-all"
+                            />
+                            <button
+                                type="submit"
+                                disabled={loading || !input.trim()}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 bg-neon text-dark h-12 w-12 rounded-full hover:scale-105 transition-all flex items-center justify-center disabled:opacity-50 shadow-[0_0_20px_rgba(0,255,204,0.4)]"
+                            >
+                                <Send size={20} className="-mr-1" />
+                            </button>
+                        </form>
+                    </div>
                 </div>
-            </div>
 
-            {/* Active Persona Header */}
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={activePersona}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="flex-shrink-0 py-4 px-4 text-center"
-                >
-                    <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10">
-                        <span style={{ color: persona.color }}>{persona.icon}</span>
-                        <span className="text-xs font-black" style={{ color: persona.color }}>{persona.label}</span>
-                        <span className="text-[10px] text-gray-500">·</span>
-                        <span className="text-[10px] text-gray-500 uppercase tracking-widest">{persona.subtitle}</span>
-                    </div>
-                </motion.div>
-            </AnimatePresence>
-
-            {/* Chat Messages */}
-            <div className="flex-1 overflow-y-auto">
-                {currentChat.length === 0 && (
-                    <div className="h-full flex flex-col items-center justify-center text-center px-4">
-                        <div
-                            className="w-16 h-16 rounded-full flex items-center justify-center mb-4 border"
-                            style={{ backgroundColor: `${persona.color}10`, borderColor: `${persona.color}30` }}
-                        >
-                            <span style={{ color: persona.color }}>{persona.icon}</span>
-                        </div>
-                        <h3 className="text-lg font-black mb-2" style={{ color: persona.color }}>{persona.label}</h3>
-                        <p className="text-sm text-gray-500 max-w-xs">{persona.subtitle}</p>
-                        <p className="text-xs text-gray-600 mt-2">Ask anything. This version of you is listening.</p>
-                    </div>
-                )}
-
-                <AnimatePresence>
-                    {currentChat.map((msg, i) => (
-                        <motion.div
-                            key={`${activePersona}-${i}`}
-                            initial={{ opacity: 0, y: 10 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`w-full py-5 border-b border-white/5 ${msg.role === 'user' ? '' : 'bg-white/[0.02]'}`}
-                        >
-                            <div className="max-w-3xl mx-auto px-4 flex gap-4">
-                                <div
-                                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 border`}
-                                    style={msg.role === 'persona'
-                                        ? { backgroundColor: `${persona.color}15`, borderColor: `${persona.color}40`, color: persona.color }
-                                        : { backgroundColor: 'rgba(255,255,255,0.05)', borderColor: 'rgba(255,255,255,0.1)', color: '#9ca3af' }
-                                    }
-                                >
-                                    {msg.role === 'user' ? <User size={14} /> : persona.icon}
-                                </div>
-                                <div className="flex-1 pt-0.5">
-                                    <div className="text-[10px] font-black uppercase tracking-widest mb-2" style={{ color: msg.role === 'persona' ? persona.color : '#6b7280' }}>
-                                        {msg.role === 'user' ? 'You' : persona.label}
-                                    </div>
-                                    <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{msg.content}</p>
-                                </div>
-                            </div>
-                        </motion.div>
-                    ))}
-                </AnimatePresence>
-
-                {loading && (
-                    <div className="w-full py-5 bg-white/[0.02]">
-                        <div className="max-w-3xl mx-auto px-4 flex gap-4">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: `${persona.color}15`, color: persona.color }}>
-                                {persona.icon}
-                            </div>
-                            <div className="flex items-center gap-1 pt-2">
-                                {[0, 1, 2].map(d => (
-                                    <span key={d} className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: persona.color, animationDelay: `${d * 150}ms` }}></span>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-                <div ref={messagesEndRef} className="h-4" />
-            </div>
-
-            {/* Input */}
-            <div className="flex-shrink-0 p-4 border-t border-white/5 bg-dark/80 backdrop-blur-xl">
-                <form onSubmit={handleSend} className="max-w-3xl mx-auto">
-                    <div
-                        className="flex items-center gap-2 bg-white/5 rounded-2xl p-2 border transition-all"
-                        style={{ borderColor: `${persona.color}30` }}
-                    >
-                        <input
-                            value={input}
-                            onChange={e => setInput(e.target.value)}
-                            placeholder={`Ask ${persona.label} anything...`}
-                            className="flex-1 bg-transparent border-none pl-4 py-2 text-white focus:outline-none text-sm placeholder-gray-600"
-                        />
-                        <button
-                            type="submit"
-                            disabled={loading || !input.trim()}
-                            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-black text-dark transition-all hover:scale-105 disabled:opacity-40"
-                            style={{ backgroundColor: persona.color }}
-                        >
-                            <Send size={16} />
-                        </button>
-                    </div>
-                </form>
+                <div className="w-full md:w-[400px] h-[400px] md:h-full flex-shrink-0 order-1 md:order-2">
+                    <FutureAvatarPanel isSpeaking={isSpeaking} predictions={predictions} />
+                </div>
             </div>
         </motion.div>
     );

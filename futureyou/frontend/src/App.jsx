@@ -14,10 +14,14 @@ import SimulationPage from './pages/SimulationPage';
 import PersonaChat from './pages/PersonaChat';
 import ProfileSettings from './pages/ProfileSettings';
 import GuardianPortal from './pages/GuardianPortal';
+import useSentinelNotifications from './lib/useSentinelNotifications';
 
 function App() {
   const location = useLocation();
-  const { isAuthOpen, setIsAuthOpen } = useContext(AppContext);
+  const { user, predictions, habits, isAuthOpen, setIsAuthOpen } = useContext(AppContext);
+  
+  // Initialize Sentinel globally — ensure it stays active across all pages
+  useSentinelNotifications(user, predictions, habits);
 
   return (
     <div className="min-h-screen bg-dark text-white font-sans overflow-x-hidden relative">

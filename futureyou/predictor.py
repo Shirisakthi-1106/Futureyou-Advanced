@@ -32,6 +32,11 @@ def load_models():
         models["explainer_wb"] = shap.TreeExplainer(models["wb"])
         
     except FileNotFoundError:
+        print("WARNING: Model files not found. Run train_models.py first.")
+        return None
+    except Exception as e:
+        print(f"WARNING: Failed to load models: {e}")
+        print("Run train_models.py to regenerate model files with current sklearn version.")
         return None
     return models
 
@@ -194,7 +199,7 @@ def generate_trajectory(models, user_input: dict, years: int = 5) -> dict:
                 inp["exercise_frequency"] = min(7, inp["exercise_frequency"] + factor * 0.4)
                 inp["mental_health_rating"] = min(10, inp["mental_health_rating"] + factor * 0.5)
                 inp["mood_score"] = min(10, inp["mood_score"] + factor * 0.4)
-                inp["diet_quality"] = min(2, inp["diet_quality"] + (1 if year > 2 else 0))
+                inp["diet_quality"] = int(min(2, inp["diet_quality"] + (1 if year > 2 else 0)))
 
             result = predict_all(models, inp)
             result["year"] = year
@@ -264,6 +269,7 @@ Be specific. Be honest. Be emotional if needed. Reference their exact numbers.
 Don't say "as an AI" or break character ever.
 Keep responses under 150 words — punchy and real.
 """
+    return context
 
 def generate_quests(insights: dict) -> list:
     """
@@ -332,7 +338,8 @@ def generate_quests(insights: dict) -> list:
             seen_features.add(feat)
         if len(final_quests) >= 3:
             break
-            
+    
+    return final_quests
 
 def generate_timeline_narrative_prompt(trajectory: dict, user_input: dict) -> str:
     """

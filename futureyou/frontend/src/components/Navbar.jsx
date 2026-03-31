@@ -1,25 +1,28 @@
-import { Link, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { useContext } from 'react';
-import { AppContext } from '../context/AppContext';
-import { supabase } from '../lib/supabase';
-import { LogOut, User } from 'lucide-react';
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { useContext } from "react";
+import { AppContext } from "../context/AppContext";
+import { LogOut, User } from "lucide-react";
 
 export default function Navbar() {
     const location = useLocation();
-    const { user, setIsAuthOpen } = useContext(AppContext);
+    const navigate = useNavigate();
+    const { user, setIsAuthOpen, logoutUser } = useContext(AppContext);
 
     const navItems = [
-        { path: '/', label: 'The Form' },
-        { path: '/dashboard', label: 'Trajectory Dashboard' },
-        { path: '/simulation', label: 'Simulation' },
-        { path: '/persona', label: 'Persona Chat' },
-        { path: '/profile', label: 'Identity Hub' },
-        { path: '/chat', label: 'Future Chat' }
+        { path: "/", label: "The Form" },
+        { path: "/dashboard", label: "Trajectory Dashboard" },
+        { path: "/simulation", label: "Simulation" },
+        { path: "/persona", label: "Persona Chat" },
+        { path: "/profile", label: "Identity Hub" },
+        { path: "/chat", label: "Future Chat" }
     ];
 
     const handleLogout = async () => {
-        await supabase.auth.signOut();
+        if (logoutUser) {
+            await logoutUser();
+        }
+        navigate("/");
     };
 
     return (
@@ -37,7 +40,7 @@ export default function Navbar() {
                             <Link
                                 key={item.path}
                                 to={item.path}
-                                className={`relative px-6 py-2 rounded-full text-sm font-medium transition-colors ${isActive ? 'text-white' : 'text-gray-400 hover:text-white'
+                                className={`relative px-6 py-2 rounded-full text-sm font-medium transition-colors ${isActive ? "text-white" : "text-gray-400 hover:text-white"
                                     }`}
                             >
                                 {isActive && (
@@ -80,3 +83,4 @@ export default function Navbar() {
         </nav>
     )
 }
+

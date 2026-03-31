@@ -1,11 +1,20 @@
 import { useContext, useState } from 'react';
 import { AppContext } from '../context/AppContext';
 import { motion } from 'framer-motion';
-import { User, Shield, Bell, Share2, Camera, Trash2, CheckCircle2, ChevronRight, Lock } from 'lucide-react';
+import { User, Shield, Bell, Share2, Trash2, CheckCircle2, ChevronRight, Lock } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import VoiceSettingsCard from '../components/VoiceSettingsCard';
+import GuardianSettingsCard from '../components/GuardianSettingsCard';
+
+const AVATARS = [
+    { id: 'alucard', name: 'Alucard', path: '/avatars/alucard.glb', gender: 'male', description: 'Guardian of the Night' },
+    { id: 'terizla', name: 'Terizla', path: '/avatars/terizla.glb', gender: 'male', description: 'Executioner of Justice' },
+    { id: 'lesley', name: 'Lesley', path: '/avatars/lesley.glb', gender: 'female', description: 'Sniper of the Mist' },
+    { id: 'novaria', name: 'Novaria', path: '/avatars/novaria.glb', gender: 'female', description: 'Starlight Weaver' }
+];
 
 export default function ProfileSettings() {
-    const { user, avatarUrl, setAvatarUrl, settings, setSettings } = useContext(AppContext);
+    const { user, selectedAvatar, setSelectedAvatar, settings, setSettings } = useContext(AppContext);
     const [activeTab, setActiveTab] = useState('identity'); // identity | sentinel | privacy
 
     const handleSaveGuardian = (e) => {
@@ -16,10 +25,20 @@ export default function ProfileSettings() {
     };
 
     if (!user) return (
-        <div className="pt-32 flex flex-col items-center justify-center h-[70vh]">
-            <Lock size={48} className="text-gray-600 mb-4" />
-            <h2 className="text-2xl font-black">Login Required</h2>
-            <p className="text-gray-500 mb-6 font-medium">Please connect your account to manage your profile.</p>
+        <div className="pt-32 flex flex-col items-center justify-center h-[70vh] text-center px-4">
+            <div className="w-16 h-16 rounded-3xl bg-white/5 border border-white/10 flex items-center justify-center mb-6">
+                <Lock size={28} className="text-gray-600" />
+            </div>
+            <h2 className="text-3xl font-black tracking-tight mb-2">Connect Identity</h2>
+            <p className="text-gray-500 mb-8 font-medium max-w-xs leading-relaxed">
+                Your neural profile is currently secured. Connect your account to manage your future personas.
+            </p>
+            <button 
+                onClick={() => setIsAuthOpen(true)}
+                className="px-10 py-4 bg-white text-dark font-black tracking-widest uppercase rounded-2xl text-[10px] transition-all hover:scale-105 shadow-xl"
+            >
+                Connect account
+            </button>
         </div>
     );
 
@@ -74,53 +93,52 @@ export default function ProfileSettings() {
 
                         {activeTab === 'identity' && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                                <h3 className="text-3xl font-black tracking-tighter mb-8 italic">Core Persona</h3>
+                                <h3 className="text-3xl font-black tracking-tighter mb-4 italic">Core Persona</h3>
+                                <p className="text-xs text-gray-500 font-medium mb-10 leading-relaxed max-w-lg">
+                                    Choose your 3D neural avatar. This choice synchronizes your future self's appearance and voice gender.
+                                </p>
                                 
                                 <div className="space-y-10">
-                                    {/* Avatar Section */}
-                                    <div className="flex flex-col sm:flex-row items-center gap-8">
-                                        <div className="w-24 h-24 rounded-full bg-white/5 border border-white/10 flex items-center justify-center overflow-hidden relative group">
-                                            {avatarUrl ? (
-                                                <img src={`https://models.readyplayer.me/${avatarUrl.split('/').pop()}.png`} className="w-full h-full object-cover" />
-                                            ) : (
-                                                <User className="text-gray-600" size={32} />
-                                            )}
-                                            <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer">
-                                                <Camera size={20} className="text-white" />
-                                            </div>
-                                        </div>
-                                        <div className="flex-1 text-center sm:text-left">
-                                            <h4 className="text-lg font-black tracking-tighter mb-2">3D Neural Avatar</h4>
-                                            <p className="text-xs text-gray-500 font-medium leading-relaxed max-w-sm mb-4">
-                                                Generated from your profile to personify your future self during simulations.
-                                            </p>
-                                            <div className="flex flex-wrap justify-center sm:justify-start gap-2">
-                                                <button className="px-4 py-2 rounded-xl bg-neon text-dark text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-transform">Update Model</button>
-                                                <button onClick={() => setAvatarUrl('')} className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-gray-400 text-[10px] font-black uppercase tracking-widest hover:bg-white/10 transition-colors">Default</button>
-                                            </div>
-                                        </div>
+                                    {/* Avatar Grid */}
+                                    <div className="grid grid-cols-2 lg:grid-cols-2 gap-4">
+                                        {AVATARS.map((av) => (
+                                            <button
+                                                key={av.id}
+                                                onClick={() => setSelectedAvatar(av)}
+                                                className={`relative p-1 rounded-[2rem] transition-all group ${selectedAvatar.id === av.id ? 'ring-2 ring-neon' : 'hover:ring-1 hover:ring-white/20'}`}
+                                            >
+                                                <div className="glass-panel p-6 rounded-[2rem] h-full text-left bg-white/[0.03] group-hover:bg-white/[0.05] transition-colors">
+                                                    <div className="flex items-center gap-3 mb-3">
+                                                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${av.gender === 'male' ? 'bg-blue-500/20' : 'bg-pink-500/20'}`}>
+                                                            <User size={14} className={av.gender === 'male' ? 'text-blue-400' : 'text-pink-400'} />
+                                                       </div>
+                                                       <span className="text-xs font-black uppercase tracking-widest text-white">{av.name}</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-gray-500 font-medium leading-relaxed">{av.description}</p>
+                                                    
+                                                    {selectedAvatar.id === av.id && (
+                                                        <div className="absolute top-6 right-6">
+                                                            <div className="w-5 h-5 bg-neon rounded-full flex items-center justify-center shadow-[0_0_10px_rgba(0,255,204,0.5)]">
+                                                                <CheckCircle2 size={12} className="text-dark" strokeWidth={3} />
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+
+                                    {/* Voice Settings Section */}
+                                    <div className="pt-6 border-t border-white/5">
+                                        <VoiceSettingsCard />
                                     </div>
 
                                     {/* Details */}
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-white/5">
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 mb-2 block">Link Your Ready Player Me ID</label>
-                                            <input 
-                                                type="text" 
-                                                value={avatarUrl}
-                                                onChange={e => setAvatarUrl(e.target.value)}
-                                                className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm focus:outline-none focus:border-neon/50" 
-                                                placeholder="https://models.readyplayer.me/id.glb"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 mb-2 block">Display Persona</label>
-                                            <input 
-                                                type="text" 
-                                                readOnly
-                                                value={user.email.split('@')[0]}
-                                                className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-gray-500 font-mono text-sm focus:outline-none" 
-                                            />
+                                    <div className="pt-10 border-t border-white/10">
+                                        <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-600 mb-2 block">Display Persona</label>
+                                        <div className="w-full bg-white/5 border border-white/10 rounded-2xl p-4 text-gray-400 font-mono text-sm leading-none flex items-center justify-between">
+                                            {user.email || user.name}
+                                            <Lock size={12} className="opacity-30" />
                                         </div>
                                     </div>
                                 </div>
@@ -129,65 +147,7 @@ export default function ProfileSettings() {
 
                         {activeTab === 'sentinel' && (
                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                                <div className="flex items-center gap-3 mb-1">
-                                    <h3 className="text-3xl font-black tracking-tighter italic">Sentinel Mode</h3>
-                                    <span className="px-2 py-0.5 rounded-full bg-neon/10 text-neon text-[8px] font-black uppercase tracking-widest border border-neon/20">Beta Active</span>
-                                </div>
-                                <p className="text-xs text-gray-500 font-medium mb-10 leading-relaxed max-w-lg">
-                                    Link a Guardian (Parent, Mentor, Partner) who can securely view your trajectory and receive critical intervention alerts.
-                                </p>
-
-                                <form onSubmit={handleSaveGuardian} className="space-y-8">
-                                    <div className="p-6 rounded-3xl bg-white/5 border border-white/10">
-                                        <div className="flex items-center gap-3 mb-6">
-                                            <Share2 size={24} className="text-purple-400" />
-                                            <div>
-                                                <h4 className="text-base font-black tracking-tight">Guardian Integration</h4>
-                                                <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Connect your sentinel</p>
-                                            </div>
-                                        </div>
-                                        
-                                        <div className="flex flex-col sm:flex-row gap-4 mb-4">
-                                            <input 
-                                                name="guardian_email"
-                                                type="email" 
-                                                defaultValue={settings.guardianEmail}
-                                                className="flex-1 bg-white/5 border border-white/10 rounded-2xl p-4 text-white font-mono text-sm focus:outline-none focus:border-neon/50" 
-                                                placeholder="parent-email@example.com"
-                                            />
-                                            <button className="px-8 py-4 rounded-2xl bg-white text-dark text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all">Send Link</button>
-                                        </div>
-                                        
-                                        {settings.guardianEmail && (
-                                            <div className="flex items-center gap-2 mt-4 text-[10px] font-black uppercase tracking-widest text-gray-500">
-                                                <CheckCircle2 size={12} className="text-green-400" />
-                                                Active Sentinel Link: 
-                                                <Link to={`/guardian-portal?user=${user.id}`} target="_blank" className="text-neon hover:underline cursor-pointer">guardian-view/{user.id.slice(0,8)}</Link>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <h4 className="text-xs font-black uppercase tracking-[0.2em] text-gray-600">Sentinel Preferences</h4>
-                                        {[
-                                            { key: 'pushNotifications', label: 'Enable Behavioral Push Alerts', sub: 'Receive prompts when late-night habits are detected.' },
-                                            { key: 'sentinelEnabled', label: 'Mirror to Guardian Dashboard', sub: 'Automatically log critical risk events to your Guardian.' }
-                                        ].map(pref => (
-                                            <div key={pref.key} className="flex items-center justify-between p-4 rounded-2xl hover:bg-white/3 transition-colors">
-                                                <div>
-                                                    <p className="text-sm font-black text-white">{pref.label}</p>
-                                                    <p className="text-[10px] text-gray-500 font-medium">{pref.sub}</p>
-                                                </div>
-                                                <div 
-                                                    className={`w-12 h-6 rounded-full relative transition-colors cursor-pointer ${settings[pref.key] ? 'bg-neon' : 'bg-gray-700'}`}
-                                                    onClick={() => setSettings({...settings, [pref.key]: !settings[pref.key]})}
-                                                >
-                                                    <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${settings[pref.key] ? 'left-7' : 'left-1'}`}></div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </form>
+                                <GuardianSettingsCard />
                             </motion.div>
                         )}
 
@@ -199,10 +159,10 @@ export default function ProfileSettings() {
                                     <div className="p-8 rounded-[2rem] bg-emerald-950/20 border border-emerald-500/20">
                                         <div className="flex items-center gap-3 mb-4">
                                             <CheckCircle2 className="text-emerald-400" size={24} />
-                                            <h4 className="text-lg font-black tracking-tight text-emerald-300">"Photo-Zero" Promise</h4>
+                                            <h4 className="text-lg font-black tracking-tight text-emerald-300">Local Sovereignty</h4>
                                         </div>
                                         <p className="text-sm text-emerald-500/80 leading-relaxed font-medium mb-6">
-                                            Your biometric data never touches our server. When you generate a 3D avatar, the source image is processed client-side and **immediately discarded**. We store only polygon coordinates, never your face.
+                                            Your 3D neural avatar data is stored locally and never leaves your browser. We don't process external images or use third-party avatar generators like ReadyPlayerMe.
                                         </p>
                                         <button className="text-[10px] font-black uppercase tracking-widest text-emerald-400 hover:text-white transition-colors">READ THE PRIVACY MANIFESTO <ChevronRight className="inline" size={14} /></button>
                                     </div>

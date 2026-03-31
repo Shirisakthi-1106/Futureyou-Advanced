@@ -16,17 +16,14 @@ export default function GuardianPortal() {
     // In a real app, we'd fetch this from the backend by userId
     // For the hackathon demo, we'll "fetch" from localStorage or use dummy data if not found
     useEffect(() => {
-        const timer = setTimeout(() => {
-            const habits = JSON.parse(localStorage.getItem('futureyou_habits') || '{}');
-            const predictions = JSON.parse(localStorage.getItem('futureyou_predictions') || '{}');
-            const trajectory = JSON.parse(localStorage.getItem('futureyou_trajectory') || '{}');
-            
-            if (predictions && trajectory) {
-                setUserData({ habits, predictions, trajectory });
-            }
-            setLoading(false);
-        }, 1200);
-        return () => clearTimeout(timer);
+        const habits = JSON.parse(localStorage.getItem('futureyou_habits') || '{}');
+        const predictions = JSON.parse(localStorage.getItem('futureyou_predictions') || '{}');
+        const trajectory = JSON.parse(localStorage.getItem('futureyou_trajectory') || '{}');
+        
+        if (predictions && trajectory && Object.keys(predictions).length > 0) {
+            setUserData({ habits, predictions, trajectory });
+        }
+        setLoading(false);
     }, [userId]);
 
     if (!userId) return <Navigate to="/" />;
@@ -61,8 +58,8 @@ export default function GuardianPortal() {
     const chartData = trajectory.current.map((pt, i) => ({
         year: i === 0 ? 'Now' : `Yr ${i}`,
         current: pt.exam_score,
-        optimized: trajectory.optimized[i].exam_score,
-        burnout: trajectory.declining[i].exam_score,
+        optimized: trajectory.optimized?.[i]?.exam_score || pt.exam_score,
+        burnout: trajectory.declining?.[i]?.exam_score || pt.exam_score,
     }));
 
     return (

@@ -7,6 +7,8 @@ import json
 import datetime
 from dotenv import load_dotenv
 from predictor import load_models, predict_all, generate_trajectory, build_future_context, generate_quests, generate_timeline_narrative_prompt
+from sentinel import evaluate_sentinel_risk
+from email_service import send_sentinel_alert, get_smtp_status
 
 load_dotenv()
 
@@ -14,16 +16,13 @@ app = FastAPI(title="FutureYou API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for development
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 models = load_models()
-
-import json
-import datetime
 
 # --- Memory System (RAG) ---
 MEMORY_FILE = "memory.json"
@@ -41,7 +40,6 @@ def save_to_memory(user_id: str, data: dict):
     if user_id not in mem:
         mem[user_id] = []
     
-    # Add timestamp
     data["timestamp"] = datetime.datetime.now().isoformat()
     mem[user_id].append(data)
     
@@ -66,6 +64,11 @@ class UserInput(BaseModel):
     diet_quality: int  # 0=Poor, 1=Fair, 2=Good
     mental_health_rating: int
     years_ahead: int = 5
+    # Guardian Settings (supports single string or list of emails)
+    guardian_email: str = None  # Legacy single email
+    guardian_emails: list[str] = []  # Multi-recipient list
+    guardian_name: str = "Guardian"
+    sentinel_enabled: bool = False
 
 class ChatMessage(BaseModel):
     role: str
@@ -138,13 +141,11 @@ def get_predictions(data: UserInput):
                     if isinstance(parsed, list):
                         timeline_items = parsed
                     elif isinstance(parsed, dict):
-                        # Handle if it wrapped in a key like "milestones"
                         for key in ["milestones", "timeline", "years"]:
                             if key in parsed and isinstance(parsed[key], list):
                                 timeline_items = parsed[key]
                                 break
                         if not timeline_items and len(parsed) > 0:
-                            # Just take the first list we find
                             for v in parsed.values():
                                 if isinstance(v, list):
                                     timeline_items = v
@@ -165,12 +166,131 @@ def get_predictions(data: UserInput):
             "stress_level": predictions["stress_pct"]
         })
     
+    # --- Sentinel Mode Integration ---
+    user_mem = get_user_memory(data.user_id)
+    sentinel_result = evaluate_sentinel_risk(predictions, trajectory, ui_dict, history=user_mem)
+    
+    # 4-hour cooldown logic for automatic alerts
+    last_alert_at = None
+    last_alert_severity = None
+    for m in reversed(user_mem):
+        if m.get('type') == 'sentinel_alert':
+            last_alert_at = datetime.datetime.fromisoformat(m['timestamp'])
+            last_alert_severity = m.get('severity', 'low')
+            break
+    
+    should_send_automated = False
+    if sentinel_result['guardianShouldBeAlerted']:
+        if not last_alert_at:
+            should_send_automated = True
+        else:
+            hours_since = (datetime.datetime.now() - last_alert_at).total_seconds() / 3600
+            if hours_since >= 4:
+                should_send_automated = True
+            elif sentinel_result['severity'] == 'critical' and last_alert_severity != 'critical':
+                # Bypass cooldown if severity escalated to critical
+                should_send_automated = True
+
+    alert_result = {"success": False, "sent_to": [], "failed": [], "error": None}
+    # Merge legacy single email + multi-email list
+    all_emails = list(data.guardian_emails) if data.guardian_emails else []
+    if data.guardian_email and data.guardian_email not in all_emails:
+        all_emails.append(data.guardian_email)
+    
+    if data.sentinel_enabled and all_emails and should_send_automated:
+        print(f"[SENTINEL] Automatic alert triggered: severity={sentinel_result['severity']}, recipients={all_emails}")
+        alert_result = send_sentinel_alert(
+            all_emails, 
+            data.guardian_name, 
+            data.user_id if data.user_id != "anonymous" else "FutureYou User",
+            sentinel_result
+        )
+        if alert_result["success"]:
+            save_to_memory(data.user_id, {
+                "type": "sentinel_alert",
+                "severity": sentinel_result['severity'],
+                "reasons": sentinel_result['reasons'],
+                "sent_to": alert_result["sent_to"]
+            })
+
     return {
         "predictions": predictions,
         "trajectory": trajectory,
         "quests": quests,
-        "timeline": timeline_items
+        "timeline": timeline_items,
+        "sentinel": {
+            **sentinel_result,
+            "alert_sent": alert_result["success"],
+            "alert_details": {
+                "sent_to": alert_result["sent_to"],
+                "failed": alert_result["failed"],
+                "error": alert_result["error"]
+            }
+        }
     }
+
+class TestAlertRequest(BaseModel):
+    emails: list[str] = []  # Multi-recipient
+    email: str = None  # Legacy single
+    name: str = "Guardian"
+    user_name: str = "Demo User"
+
+@app.post("/test-alert")
+def test_alert(req: TestAlertRequest):
+    """Send a test Sentinel alert to verify SMTP delivery works."""
+    # Merge legacy + multi emails
+    all_emails = list(req.emails) if req.emails else []
+    if req.email and req.email not in all_emails:
+        all_emails.append(req.email)
+    
+    if not all_emails:
+        raise HTTPException(status_code=400, detail="No email addresses provided")
+    
+    mock_risk = {
+        'severity': 'high',
+        'reasons': [
+            "[TEST] Manual verification: Sentinel intervention pathway active.",
+            "[TEST] Simulated high-stress condition for system validation."
+        ],
+        'stats': {
+            'stress': 82.0, 'sleep': 5.5, 'wellbeing': 4.5, 'dropout': 25.0, 'exam': 68.0
+        },
+        'trajectory_summary': {
+            'drift_path_exam': 45.2,
+            'current_path_exam': 68.0,
+            'thriving_path_exam': 82.5,
+            'drift_path_stress': 88.0,
+            'current_path_stress': 62.0,
+            'exam_gap': 37.3,
+            'years_projected': 5
+        },
+        'recovery_suggestions': [
+            "[TEST] Encourage consistent sleep of 7-8 hours.",
+            "[TEST] Assess workload — reduce overcommitment and introduce breaks.",
+            "[TEST] Check emotional wellbeing through open conversation about stressors.",
+            "[TEST] This is a verification email — no real alert was triggered."
+        ]
+    }
+    
+    print(f"[SENTINEL] Manual test alert requested for: {all_emails}")
+    result = send_sentinel_alert(all_emails, req.name, req.user_name, mock_risk)
+    
+    return {
+        "status": "success" if result["success"] else "failed",
+        "sent_to": result["sent_to"],
+        "failed": result["failed"],
+        "error": result["error"],
+        "message": (
+            f"Delivered to {len(result['sent_to'])} of {len(all_emails)} recipients"
+            if result["success"]
+            else f"Failed: {result['error']}"
+        )
+    }
+
+@app.get("/smtp-status")
+def smtp_status():
+    """Frontend can check if SMTP is properly configured."""
+    return get_smtp_status()
 
 @app.post("/chat")
 def chat_with_future(req: ChatRequest):
@@ -190,7 +310,6 @@ def chat_with_future(req: ChatRequest):
     # Retrieve Agentic Memory (RAG)
     past_memory = get_user_memory(req.user_input.user_id)
     if past_memory and len(past_memory) > 1:
-        # User has history! We can let the agent know if they improved or declined
         first_mem = past_memory[0]
         latest_mem = past_memory[-1]
         memory_context = f"\n\nAGENTIC MEMORY AWARENESS:\nYou have interacted with this user before over time.\nTheir first logged exam score was {first_mem.get('exam_score')} and stress was {first_mem.get('stress_level')}%. Their current is {predictions['exam_score']} and {predictions['stress_pct']}%.\nIf they improved, praise them. If they got worse, express extreme concern from the future! Reference their journey."
@@ -223,7 +342,6 @@ def chat_with_future(req: ChatRequest):
         if "choices" in data:
             reply = data["choices"][0]["message"]["content"]
             
-            # Save chat interaction to memory too
             if req.user_input.user_id != "anonymous":
                 save_to_memory(req.user_input.user_id, {
                     "type": "chat",
@@ -233,10 +351,13 @@ def chat_with_future(req: ChatRequest):
                 
             return {"reply": reply}
         else:
-            raise HTTPException(status_code=500, detail=f"Groq API Error: {data.get('error', {}).get('message', 'Unknown error')}")
+            error_msg = data.get('error', {}).get('message', 'Unknown error')
+            print(f"Groq API Error in /chat: {error_msg}")
+            return {"reply": f"[Neural Link Instability] The timeline is clouded and I cannot speak clearly right now. Error: {error_msg}"}
             
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Connection error: {str(e)}")
+        print(f"Connection error in /chat: {e}")
+        return {"reply": "[Neural Link Instability] The temporal transmission was interrupted. Try speaking to me again from the dashboard."}
 
 class ParseRequest(BaseModel):
     message: str
@@ -293,7 +414,6 @@ If a value is not mentioned, make a reasonable, average guess based on the tone 
         data = resp.json()
         if "choices" in data:
             reply = data["choices"][0]["message"]["content"]
-            import json
             try:
                 parsed = json.loads(reply)
                 return {"parsed": parsed}
@@ -313,14 +433,9 @@ class FeedbackInput(BaseModel):
 
 @app.post("/feedback")
 def log_feedback(data: FeedbackInput):
-    # MVP Continuous Fine-Tuning Endpoint
-    # In a full production system, we would take this new data point
-    # and call `model.partial_fit(X, y)` if using SGDRegressor, 
-    # or append to a dataset retraining queue.
     try:
         feedback_file = "feedback.json"
         
-        # Load existing
         if os.path.exists(feedback_file):
             with open(feedback_file, "r") as f:
                 logs = json.load(f)

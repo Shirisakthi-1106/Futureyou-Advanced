@@ -1,71 +1,37 @@
 import { useContext, useState, useRef, useEffect } from 'react';
 import { AppContext } from '../context/AppContext';
-import { motion } from 'framer-motion';
-import { Send, User, Sparkles } from 'lucide-react';
-import { Navigate } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Send, User, Sparkles, Binary, Volume2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import axios from 'axios';
-import FutureAvatar from '../components/FutureAvatar';
+import FutureAvatarPanel from '../components/FutureAvatarPanel';
+import { useAvatarVoice } from '../lib/useAvatarVoice';
+
+const DataMissingFallback = () => (
+    <div className="h-[70vh] flex flex-col items-center justify-center text-center px-4 pt-32">
+        <div className="w-16 h-16 rounded-full bg-neon/5 border border-neon/20 flex items-center justify-center mb-6 text-neon opacity-40">
+            <Sparkles size={32} />
+        </div>
+        <h2 className="text-2xl font-black mb-3">Neural Link Offline</h2>
+        <p className="text-gray-500 max-w-sm mb-8 font-medium italic">Your future self is currently out of range. Initialize your unique timeline to establish the uplink.</p>
+        <Link to="/" className="px-8 py-3 bg-neon text-dark font-black tracking-widest uppercase rounded-full text-[10px] transition-all hover:scale-105 active:scale-95 shadow-lg">
+            Project Future Now
+        </Link>
+    </div>
+);
 
 export default function Chat() {
-    const { user, predictions, habits, chatHistory, setChatHistory } = useContext(AppContext);
+    const { user, predictions, habits, chatHistory, setChatHistory, selectedAvatar, settings } = useContext(AppContext);
     const [chatInput, setChatInput] = useState('');
     const [chatLoading, setChatLoading] = useState(false);
-    const [isSpeaking, setIsSpeaking] = useState(false);
+    const { isSpeaking, playVoice, stopVoice } = useAvatarVoice();
     const messagesEndRef = useRef(null);
 
-    const speakMessage = (text) => {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.cancel(); // Stop any current speech
-            
-            // Clean up text for speech (remove markdown asterisks, etc)
-            const cleanText = text.replace(/[*#]/g, '');
-            
-            const utterance = new SpeechSynthesisUtterance(cleanText);
-            
-            // Try to find a good English voice
-            const voices = window.speechSynthesis.getVoices();
-            const preferredVoice = voices.find(v => v.lang.includes('en-') && (v.name.includes('Google') || v.name.includes('Premium')));
-            if(preferredVoice) utterance.voice = preferredVoice;
-            
-            // Adjust pitch/rate based on predictions to make it dynamic
-            if (predictions) {
-                const wellbeing = predictions.wellbeing_score || 5;
-                utterance.pitch = wellbeing >= 7 ? 1.2 : wellbeing <= 4 ? 0.8 : 1.0;
-                utterance.rate = wellbeing >= 7 ? 1.0 : wellbeing <= 4 ? 0.9 : 1.0;
-            } else {
-                utterance.pitch = 1;
-                utterance.rate = 1;
-            }
-
-            utterance.onstart = () => setIsSpeaking(true);
-            utterance.onend = () => setIsSpeaking(false);
-            utterance.onerror = () => setIsSpeaking(false);
-
-            window.speechSynthesis.speak(utterance);
-        }
-    };
-
-    // Ensure voices are loaded
     useEffect(() => {
-        if ('speechSynthesis' in window) {
-            window.speechSynthesis.getVoices();
-        }
-        return () => {
-            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-        };
-    }, []);
-
-    const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    };
-
-    useEffect(() => {
-        scrollToBottom();
     }, [chatHistory, chatLoading]);
 
-    if (!user || !predictions) {
-        return <Navigate to="/" />;
-    }
+    if (!user || !predictions) return <DataMissingFallback />;
 
     const handleChat = async (e) => {
         e.preventDefault();
@@ -99,7 +65,9 @@ export default function Chat() {
             });
             const reply = chatRes.data.reply;
             setChatHistory([...newHistory, { role: 'future', content: reply }]);
-            speakMessage(reply);
+            if (settings.voiceAutoplay) {
+                playVoice(reply, 'future');
+            }
         } catch (e) {
             console.error(e);
             window.alert('Failed to send message. Make sure api.py is running on port 8000.');
@@ -109,88 +77,112 @@ export default function Chat() {
 
     return (
         <motion.div 
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
-            className="flex flex-col h-[calc(100vh-80px)] mt-20 pb-0 bg-dark w-full relative z-20"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="h-[100vh] pt-20 overflow-hidden bg-dark text-white flex flex-col"
         >
-            {/* Ambient background effect */}
-            <div className="fixed inset-0 -z-10 pointer-events-none opacity-20">
-                <div className="absolute top-1/4 left-1/4 w-[30%] h-[30%] rounded-full bg-neon/30 blur-[100px]"></div>
-                <div className="absolute bottom-1/4 right-1/4 w-[30%] h-[30%] rounded-full bg-purple/30 blur-[100px]"></div>
-            </div>
-            {/* Visual Avatar Anchor */}
-            <div className={`w-full transition-all duration-700 ease-in-out flex-shrink-0 ${chatHistory.length === 0 ? 'h-1/2' : 'h-32 md:h-48'}`}>
-                 <FutureAvatar isSpeaking={isSpeaking} predictions={predictions} />
-            </div>
-
-            <div className="flex-1 overflow-y-auto custom-scrollbar w-full">
-                {chatHistory.length === 0 && (
-                    <div className="h-full flex flex-col items-center justify-center text-center px-4 opacity-50">
-                        <Sparkles size={48} className="text-neon mb-4" />
-                        <h2 className="text-2xl font-bold tracking-widest text-white uppercase">Initialize Neural Link</h2>
-                        <p className="text-gray-400 max-w-md mt-2">Send a message to speak to your future self.</p>
+            <div className="max-w-[1400px] mx-auto w-full flex-1 flex flex-col md:flex-row p-4 md:p-8 gap-6 md:gap-10 h-full overflow-hidden">
+                
+                {/* Desktop Left Column: Chat Interface */}
+                <div className="flex-1 flex flex-col h-full bg-white/[0.02] border border-white/5 rounded-[2.5rem] relative shadow-2xl overflow-hidden order-2 md:order-1">
+                    
+                    {/* Chat Header */}
+                    <div className="flex-shrink-0 px-8 py-6 border-b border-white/5 bg-white/3 flex items-center justify-between">
+                         <div className="flex items-center gap-4">
+                             <div className="w-10 h-10 rounded-2xl bg-neon/10 border border-neon/30 flex items-center justify-center">
+                                 <Binary className="text-neon" size={20} />
+                             </div>
+                             <div>
+                                 <h2 className="text-xl font-black tracking-tighter uppercase italic">Neural Uplink</h2>
+                                 <div className="flex items-center gap-1.5 pt-0.5">
+                                     <div className="w-1.5 h-1.5 rounded-full bg-neon animate-pulse"></div>
+                                     <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">Secure Protocol v9.4</span>
+                                 </div>
+                             </div>
+                         </div>
                     </div>
-                )}
 
-                {chatHistory.map((msg, i) => (
-                    <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        key={i}
-                        className={`w-full py-6 md:py-8 border-b border-white/5 ${msg.role === 'user' ? 'bg-transparent' : 'bg-white/[0.02]'}`}
-                    >
-                        <div className="max-w-4xl mx-auto px-4 md:px-6 flex gap-4 md:gap-6">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${msg.role === 'user' ? 'bg-gray-700' : 'bg-neon/20 border border-neon/50 shadow-[0_0_10px_rgba(0,255,204,0.3)]'}`}>
-                                {msg.role === 'user' ? <User size={16} className="text-white" /> : <Sparkles size={16} className="text-neon" />}
-                            </div>
-                            <div className="flex-1 text-gray-200 leading-relaxed text-base md:text-lg pt-1 whitespace-pre-wrap">
-                                {msg.content}
-                            </div>
-                        </div>
-                    </motion.div>
-                ))}
+                    {/* Messages Scroll Area */}
+                    <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-8">
+                        <AnimatePresence mode="popLayout">
+                            {chatHistory.length === 0 && (
+                                <motion.div 
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    className="h-full flex flex-col items-center justify-center text-center opacity-30 select-none pb-20"
+                                >
+                                    <Sparkles size={64} className="text-neon mb-6 opacity-50" strokeWidth={1} />
+                                    <h3 className="text-2xl font-black uppercase tracking-[0.2em] italic mb-3">Initialize Connection</h3>
+                                    <p className="text-sm font-medium max-w-sm">Neural self-reflection active. Choose a query to project your future self's perspective.</p>
+                                </motion.div>
+                            )}
 
-                {chatLoading && (
-                    <div className="w-full py-8 bg-white/[0.02]">
-                        <div className="max-w-4xl mx-auto px-6 flex gap-6">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 bg-neon/20 border border-neon/50 shadow-[0_0_10px_rgba(0,255,204,0.3)]">
-                                <Sparkles size={16} className="text-neon" />
+                            {chatHistory.map((msg, i) => (
+                                <motion.div
+                                    layout
+                                    initial={{ opacity: 0, x: msg.role === 'user' ? 20 : -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    key={i}
+                                    className={`flex gap-6 max-w-4xl ${msg.role === 'user' ? 'ml-auto flex-row-reverse text-right' : 'mr-auto'}`}
+                                >
+                                    <div className={`w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 border ${msg.role === 'user' ? 'bg-white/5 border-white/10' : 'bg-neon/10 border-neon/30 shadow-[0_0_20px_rgba(0,255,204,0.15)]'}`}>
+                                        {msg.role === 'user' ? <User size={18} className="text-gray-400" /> : <Sparkles size={18} className="text-neon" />}
+                                    </div>
+                                    <div className={`p-6 rounded-[2rem] text-base md:text-lg leading-relaxed relative group/msg ${msg.role === 'user' ? 'bg-white/5 border border-white/10 text-gray-200' : 'bg-white/[0.04] border border-white/5 text-neon shadow-lg'}`}>
+                                        {msg.content}
+                                        {msg.role === 'future' && (
+                                            <button 
+                                                onClick={() => playVoice(msg.content, 'future')}
+                                                className="absolute -right-12 top-1/2 -translate-y-1/2 p-2 rounded-full bg-white/5 border border-white/10 opacity-0 group-hover/msg:opacity-100 transition-opacity hover:bg-neon hover:text-dark text-gray-400"
+                                            >
+                                                <Volume2 size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+                                </motion.div>
+                            ))}
+                        </AnimatePresence>
+
+                        {chatLoading && (
+                            <div className="flex gap-6 mr-auto group">
+                                <div className="w-10 h-10 rounded-2xl bg-neon/10 border border-neon/30 flex items-center justify-center flex-shrink-0 animate-pulse">
+                                    <Sparkles size={18} className="text-neon" />
+                                </div>
+                                <div className="flex items-center gap-2 px-6 py-4 rounded-3xl bg-white/[0.04] border border-white/5">
+                                    <span className="w-2 h-2 rounded-full bg-neon/40 animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                                    <span className="w-2 h-2 rounded-full bg-neon/40 animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                                    <span className="w-2 h-2 rounded-full bg-neon/40 animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                                </div>
                             </div>
-                            <div className="flex-1 text-neon/70 leading-relaxed text-lg pt-1 animate-pulse flex gap-1">
-                                <span className="w-2 h-2 rounded-full bg-neon/70 animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                                <span className="w-2 h-2 rounded-full bg-neon/70 animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                                <span className="w-2 h-2 rounded-full bg-neon/70 animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                            </div>
-                        </div>
+                        )}
+                        <div ref={messagesEndRef} className="h-4" />
                     </div>
-                )}
-                <div ref={messagesEndRef} className="h-4" />
-            </div>
 
-            <div className="w-full bg-gradient-to-t from-dark via-dark to-transparent pt-6 pb-8 px-6 mt-auto">
-                <div className="max-w-4xl mx-auto relative">
-                    <form onSubmit={handleChat}>
-                        <div className="relative flex items-center w-full bg-[#12121a]/80 border border-white/10 rounded-[2rem] p-2 focus-within:border-neon focus-within:ring-1 focus-within:ring-neon/50 transition-all shadow-2xl backdrop-blur-md group hover:border-white/20">
+                    {/* Chat Input Docked at bottom */}
+                    <div className="flex-shrink-0 p-6 bg-gradient-to-t from-black/60 to-transparent">
+                        <form onSubmit={handleChat} className="relative group">
                             <input
                                 type="text"
                                 value={chatInput}
                                 onChange={e => setChatInput(e.target.value)}
-                                placeholder="Message Future You..."
-                                className="flex-1 bg-transparent border-none pl-6 pr-2 py-3 text-white focus:outline-none focus:ring-0 text-lg placeholder:text-gray-500 w-full"
+                                placeholder="Quantum query to future self..."
+                                className="w-full bg-[#12121a]/80 border border-white/10 rounded-[2.5rem] pl-8 pr-16 py-5 text-white active:outline-none focus:outline-none focus:border-neon focus:ring-1 focus:ring-neon/30 transition-all text-lg placeholder:text-gray-600 shadow-2xl backdrop-blur-md"
                             />
                             <button
                                 disabled={chatLoading}
                                 type="submit"
-                                className="bg-neon text-dark h-12 w-12 flex-shrink-0 rounded-full hover:bg-white transition-transform duration-300 hover:scale-105 flex items-center justify-center disabled:opacity-50 disabled:hover:scale-100 disabled:hover:bg-neon ml-2 mr-1 shadow-[0_0_15px_rgba(0,255,204,0.3)]"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 bg-neon text-dark h-12 w-12 rounded-full hover:scale-105 transition-all flex items-center justify-center disabled:opacity-50 shadow-[0_0_20px_rgba(0,255,204,0.4)]"
                             >
-                                <Send size={20} className="-ml-1" />
+                                <Send size={20} className="-mr-1" />
                             </button>
-                        </div>
-                    </form>
-                    <div className="text-center mt-3 text-xs text-gray-500">
-                        Future You can make mistakes. Consider verifying important timeline details.
+                        </form>
+                    </div>
+                </div>
+
+                {/* Desktop Right Column: Fixed Avatar Panel */}
+                <div className="w-full md:w-[380px] lg:w-[450px] h-[500px] md:h-full flex-shrink-0 order-1 md:order-2">
+                    <div className="sticky top-0 h-full">
+                        <FutureAvatarPanel isSpeaking={isSpeaking} predictions={predictions} />
                     </div>
                 </div>
             </div>

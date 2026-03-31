@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 export default function Home() {
-    const { user, setIsAuthOpen, habits, setHabits, setPredictions, setTrajectory, setQuests, setTimeline, setChatHistory } = useContext(AppContext);
+    const { user, setIsAuthOpen, habits, setHabits, setPredictions, setTrajectory, setQuests, setTimeline, setChatHistory, settings } = useContext(AppContext);
     const [loading, setLoading] = useState(false);
     const [inputMode, setInputMode] = useState('sliders');
     const [textInput, setTextInput] = useState('');
@@ -28,49 +28,69 @@ export default function Home() {
         setParsing(false);
     };
 
-    const handlePredict = async () => {
+    const handlePredict = () => {
         if (!user) {
             setIsAuthOpen(true);
             return;
         }
 
         setLoading(true);
-        try {
-            // Clean payload for backend (parse floats and round ints)
-            const payload = {
-                user_id: user.id,
-                ...habits,
-                sleep_hours: Number(habits.sleep_hours),
-                study_hours: Number(habits.study_hours),
-                screen_time: Number(habits.screen_time),
-                social_media_hours: Number(habits.social_media_hours),
-                exercise_frequency: Math.round(habits.exercise_frequency),
-                mood_score: Math.round(habits.mood_score),
-                diet_quality: Math.round(habits.diet_quality),
-                mental_health_rating: Math.round(habits.mental_health_rating),
-                years_ahead: Math.round(habits.years_ahead)
-            };
 
-            const res = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/predict`, payload);
-            setPredictions(res.data.predictions);
-            setTrajectory(res.data.trajectory);
-            setQuests(res.data.quests || []);
-            setTimeline(res.data.timeline || []);
+        // Clean payload for backend (parse floats and round ints)
+        const payload = {
+            user_id: user.id,
+            ...habits,
+            sleep_hours: Number(habits.sleep_hours),
+            study_hours: Number(habits.study_hours),
+            screen_time: Number(habits.screen_time),
+            social_media_hours: Number(habits.social_media_hours),
+            exercise_frequency: Math.round(habits.exercise_frequency),
+            mood_score: Math.round(habits.mood_score),
+            diet_quality: Math.round(habits.diet_quality),
+            mental_health_rating: Math.round(habits.mental_health_rating),
+            years_ahead: Math.round(habits.years_ahead),
+            // Guardian/Sentinel settings from global state
+            guardian_email: settings.guardianEmail,
+            guardian_emails: settings.guardianEmails || [],
+            guardian_name: settings.guardianName,
+            sentinel_enabled: settings.sentinelEnabled
+        };
 
-            // Initialize chat implicitly for the future
-            const chatRes = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/chat`, {
-                user_input: payload,
-                message: "Introduce yourself as my future self. Keep it short and impactful.",
-                history: []
+        // NAVIGATE IMMEDIATELY — True non-blocking flow
+        navigate('/dashboard');
+
+        // Fire and forget prediction request (it will update context and localStorage when done)
+        axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/predict`, payload)
+            .then(res => {
+                const combinedPredictions = {
+                    ...res.data.predictions,
+                    sentinel: res.data.sentinel
+                };
+                setPredictions(combinedPredictions);
+                setTrajectory(res.data.trajectory);
+                setQuests(res.data.quests || []);
+                setTimeline(res.data.timeline || []);
+
+                // PERSIST for session stability
+                localStorage.setItem("futureyou_predictions", JSON.stringify(combinedPredictions));
+                localStorage.setItem("futureyou_trajectory", JSON.stringify(res.data.trajectory));
+
+                // Then trigger background chat init
+                return axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/chat`, {
+                    user_input: payload,
+                    message: "Introduce yourself as my future self. Keep it short and impactful.",
+                    history: []
+                });
+            })
+            .then(chatRes => {
+                setChatHistory([{ role: 'future', content: chatRes.data.reply }]);
+            })
+            .catch(e => {
+                console.error("Prediction/Chat Background Failed:", e);
+            })
+            .finally(() => {
+                setLoading(false);
             });
-            setChatHistory([{ role: 'future', content: chatRes.data.reply }]);
-
-            navigate('/dashboard');
-        } catch (e) {
-            console.error(e);
-            window.alert('Simulation Initialization Failed: Could not connect to the timeline server. Ensure the backend FastAPI server is running on port 8000 (uvicorn api:app --reload --port 8000).');
-        }
-        setLoading(false);
     };
 
     const labels = {
@@ -200,7 +220,7 @@ export default function Home() {
                 >
                     <div className="absolute inset-0 bg-gradient-to-r from-neon to-purple opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                     <span className="relative z-10 group-hover:text-white transition-colors">
-                        {loading ? 'Opening Time Portal...' : 'Generate Future Trajectory'}
+                        Generate Future Trajectory
                     </span>
                     <ArrowRight size={18} className="relative z-10 group-hover:text-white transition-transform group-hover:translate-x-2" />
                 </motion.button>

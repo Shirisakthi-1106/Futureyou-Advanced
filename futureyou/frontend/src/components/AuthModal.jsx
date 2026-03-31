@@ -1,50 +1,119 @@
-import { useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'lucide-react';
+import { useState, useContext } from "react";
+import { supabase } from "../lib/supabase";
+import { motion, AnimatePresence } from "framer-motion";
+import { X } from "lucide-react";
+import { AppContext } from "../context/AppContext";
+import { useNavigate } from "react-router-dom";
 
 export default function AuthModal({ isOpen, onClose }) {
+    const { loginDemoUser } = useContext(AppContext);
+    const navigate = useNavigate();
     const [isLogin, setIsLogin] = useState(true);
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [message, setMessage] = useState('');
-    const [step, setStep] = useState(1); // 1 = details, 2 = avatar synchronization
-    const [isCapturing, setIsCapturing] = useState(false);
+    const [message, setMessage] = useState("");
 
     const handleAuth = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError(null);
-        setMessage('');
+        setMessage("");
 
         try {
             if (isLogin) {
-                const { error } = await supabase.auth.signInWithPassword({ email, password });
-                if (error) throw error;
-                onClose();
-            } else {
-                if (step === 1) {
-                    // Just validate and move to step 2 for "onboarding experience"
-                    setStep(2);
-                } else {
-                    const { data, error } = await supabase.auth.signUp({ email, password });
-                    if (error) throw error;
-
-                    if (data?.session === null) {
-                        setMessage('Registration successful! Please check your email.');
-                    } else {
-                        setMessage('Timeline Initialized. Future Sync Complete.');
-                        setTimeout(onClose, 2000);
+                const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+                if (error) {
+                    // Rate limit or unverified email → auto-fallback to demo mode
+                    if (isRateLimitOrVerificationError(error.message)) {
+                        console.warn("Supabase Auth limited — switching to local auth mode.");
+                        setMessage("Server rate-limited. Logging you in locally...");
+                        setTimeout(() => {
+                            loginAsLocalUser(email);
+                            navigate("/dashboard");
+                        }, 800);
+                        return;
                     }
+                    throw error;
+                }
+                onClose();
+                navigate("/dashboard");
+            } else {
+                const { data, error } = await supabase.auth.signUp({ email, password });
+                if (error) {
+                    if (isRateLimitOrVerificationError(error.message)) {
+                        console.warn("Supabase Auth limited — creating local profile.");
+                        setMessage("Server rate-limited. Creating local profile...");
+                        setTimeout(() => {
+                            loginAsLocalUser(email);
+                            navigate("/dashboard");
+                        }, 800);
+                        return;
+                    }
+                    throw error;
+                }
+
+                if (data?.session === null) {
+                    // Email verification is pending — but we bypass it for hackathon/demo
+                    setMessage("Profile created! Syncing your timeline...");
+                    setTimeout(() => {
+                        loginAsLocalUser(email);
+                        navigate("/dashboard");
+                    }, 800);
+                } else {
+                    setMessage("Timeline Initialized. Future Sync Complete.");
+                    setTimeout(() => {
+                        onClose();
+                        navigate("/dashboard");
+                    }, 1500);
                 }
             }
         } catch (err) {
-            setError(err.message);
+            const msg = err.message || "Unknown error";
+            if (msg.includes("Invalid login credentials")) {
+                setError("Invalid email or password. Please try again or create a new profile.");
+            } else if (msg.includes("User already registered")) {
+                setError("This email is already registered. Try logging in instead.");
+            } else if (msg.includes("Password should be at least")) {
+                setError("Password must be at least 6 characters.");
+            } else if (msg.includes("invalid") && msg.includes("email")) {
+                setError("Please enter a valid email address.");
+            } else {
+                setError(msg);
+            }
         } finally {
             setLoading(false);
         }
+    };
+
+    // Check if a Supabase error is a rate limit or email verification issue
+    const isRateLimitOrVerificationError = (msg) => {
+        if (!msg) return false;
+        const lower = msg.toLowerCase();
+        return lower.includes("rate limit") ||
+               lower.includes("rate_limit") ||
+               lower.includes("email not confirmed") ||
+               lower.includes("email_send_rate") ||
+               lower.includes("over_email_send");
+    };
+
+    // Create a local user profile (independent of Supabase)
+    // This allows the app to work even when Supabase is unavailable or rate-limited
+    const loginAsLocalUser = (userEmail) => {
+        const localUser = {
+            id: `local-${btoa(userEmail).replace(/[=+/]/g, '').slice(0, 16)}`,
+            email: userEmail,
+            name: userEmail.split("@")[0],
+            isLocal: true
+        };
+        localStorage.setItem("futureyou_demo_user", JSON.stringify(localUser));
+        loginDemoUser(localUser);
+    };
+
+    const handleSkipLogin = () => {
+        loginDemoUser();
+        navigate("/dashboard");
     };
 
     return (
@@ -64,122 +133,91 @@ export default function AuthModal({ isOpen, onClose }) {
                     >
                         <div className="neon-border absolute inset-0 -z-10 rounded-3xl opacity-50"></div>
                         <div className="glass-panel p-8 rounded-3xl relative overflow-hidden">
-                            {/* NEW: Onboarding Step 2 - Avatar Camera Mock */}
-                            {!isLogin && step === 2 ? (
-                                <motion.div 
-                                    initial={{ opacity: 0, x: 20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    className="relative z-10"
+                            <div className="relative z-10">
+                                <button
+                                    onClick={onClose}
+                                    className="absolute top-0 right-0 text-gray-400 hover:text-white transition-colors"
                                 >
-                                    <h2 className="text-3xl font-bold tracking-tighter mb-2 bg-gradient-to-r from-neon to-purple bg-clip-text text-transparent">
-                                        Identity Sync
-                                    </h2>
-                                    <p className="text-gray-400 text-sm mb-6">
-                                        Capture your essence to generate your 3D future self. 
-                                    </p>
+                                    <X size={20} />
+                                </button>
 
-                                    <div className="aspect-square w-full rounded-2xl bg-black/40 border border-white/10 flex flex-col items-center justify-center relative overflow-hidden group mb-6">
-                                        {isCapturing ? (
-                                            <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center">
-                                                <div className="w-12 h-12 rounded-full border-2 border-neon border-t-transparent animate-spin mb-4"></div>
-                                                <p className="text-xs font-black uppercase tracking-widest text-neon">Scanning Neural Patterns...</p>
-                                                <p className="text-[10px] text-gray-500 mt-2">"Photo-Zero" Protocol Active: Image discarded after mesh generation.</p>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                <div className="w-16 h-16 rounded-full border-2 border-white/5 flex items-center justify-center mb-4 group-hover:border-neon/30 transition-colors">
-                                                    <div className="w-10 h-10 rounded-full bg-white/5"></div>
-                                                </div>
-                                                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Connect Camera Permission</p>
-                                                <div className="absolute bottom-4 left-0 right-0 px-8">
-                                                    <button 
-                                                        onClick={() => {
-                                                            setIsCapturing(true);
-                                                            setTimeout(() => {
-                                                                setIsCapturing(false);
-                                                                handleAuth({ preventDefault: () => {} });
-                                                            }, 3000);
-                                                        }}
-                                                        className="w-full py-3 bg-neon text-dark font-black text-[10px] uppercase tracking-[0.2em] rounded-xl hover:scale-105 transition-transform"
-                                                    >
-                                                        Scan Face & Initialize
-                                                    </button>
-                                                </div>
-                                            </>
-                                        )}
+                                <h2 className="text-3xl font-bold tracking-tighter mb-2 bg-gradient-to-r from-neon to-purple bg-clip-text text-transparent">
+                                    {isLogin ? "Access Timeline" : "Initialize Profile"}
+                                </h2>
+                                <p className="text-gray-400 text-sm mb-8">
+                                    {isLogin ? "Welcome back to your quantum trajectory." : "Synchronizing your neural link to the future."}
+                                </p>
+
+                                <form onSubmit={handleAuth} className="flex flex-col gap-4">
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-400 tracking-widest uppercase mb-2 block">Email Coordinates</label>
+                                        <input
+                                            type="email"
+                                            value={email}
+                                            autoFocus
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            required
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-neon transition-colors"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-gray-400 tracking-widest uppercase mb-2 block">Security Key</label>
+                                        <input
+                                            type="password"
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            required
+                                            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-neon transition-colors"
+                                        />
                                     </div>
 
-                                    <button 
-                                        onClick={() => handleAuth({ preventDefault: () => {} })}
-                                        className="w-full text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-white transition-colors"
-                                    >
-                                        Use Default Avatar Instead
-                                    </button>
-                                </motion.div>
-                            ) : (
-                                <div className="relative z-10">
+                                    {error && (
+                                        <div className="mt-1 p-3 rounded-xl bg-red-500/10 border border-red-500/20">
+                                            <div className="text-red-400 text-sm">{error}</div>
+                                        </div>
+                                    )}
+                                    {message && (
+                                        <div className="mt-1 p-3 rounded-xl bg-neon/10 border border-neon/20">
+                                            <div className="text-neon text-sm">{message}</div>
+                                        </div>
+                                    )}
+
                                     <button
-                                        onClick={onClose}
-                                        className="absolute top-0 right-0 text-gray-400 hover:text-white transition-colors"
+                                        type="submit"
+                                        disabled={loading}
+                                        className="w-full mt-2 py-4 bg-white text-dark font-bold tracking-widest uppercase rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(0,255,204,0.4)] hover:text-neon transition-all disabled:opacity-50"
                                     >
-                                        <X size={20} />
+                                        {loading ? "Processing..." : (isLogin ? "Authenticate" : "Create Profile")}
+                                    </button>
+                                </form>
+
+                                <div className="mt-6 flex flex-col items-center gap-3">
+                                    <button
+                                        onClick={() => {
+                                            setIsLogin(!isLogin);
+                                            setError(null);
+                                            setMessage("");
+                                        }}
+                                        className="text-gray-400 text-sm hover:text-white transition-colors"
+                                    >
+                                        {isLogin ? "Don't have a timeline yet? Initialize one." : "Already linked? Authenticate here."}
                                     </button>
 
-                                    <h2 className="text-3xl font-bold tracking-tighter mb-2 bg-gradient-to-r from-neon to-purple bg-clip-text text-transparent">
-                                        {isLogin ? 'Access Timeline' : 'Initialize Profile'}
-                                    </h2>
-                                    <p className="text-gray-400 text-sm mb-8">
-                                        {isLogin ? 'Welcome back to your quantum trajectory.' : 'Synchronizing your neural link to the future.'}
-                                    </p>
-
-                                    <form onSubmit={handleAuth} className="flex flex-col gap-4">
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-400 tracking-widest uppercase mb-2 block">Email Coordinates</label>
-                                            <input
-                                                type="email"
-                                                value={email}
-                                                autoFocus
-                                                onChange={(e) => setEmail(e.target.value)}
-                                                required
-                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-neon transition-colors"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="text-xs font-bold text-gray-400 tracking-widest uppercase mb-2 block">Security Key</label>
-                                            <input
-                                                type="password"
-                                                value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
-                                                required
-                                                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-neon transition-colors"
-                                            />
-                                        </div>
-
-                                        {error && <div className="text-red-400 text-sm mt-2">{error}</div>}
-                                        {message && <div className="text-neon text-sm mt-2">{message}</div>}
-
-                                        <button
-                                            type="submit"
-                                            disabled={loading}
-                                            className="w-full mt-4 py-4 bg-white text-dark font-bold tracking-widest uppercase rounded-xl shadow-[0_0_20px_rgba(255,255,255,0.2)] hover:shadow-[0_0_30px_rgba(0,255,204,0.4)] hover:text-neon transition-all"
-                                        >
-                                            {loading ? 'Processing...' : (isLogin ? 'Authenticate' : 'Next: Identity Sync')}
-                                        </button>
-                                    </form>
-
-                                    <div className="mt-6 text-center">
-                                        <button
-                                            onClick={() => {
-                                                setIsLogin(!isLogin);
-                                                setStep(1);
-                                            }}
-                                            className="text-gray-400 text-sm hover:text-white transition-colors"
-                                        >
-                                            {isLogin ? "Don't have a timeline yet? Initialize one." : "Already linked? Authenticate here."}
-                                        </button>
+                                    <div className="w-full flex items-center gap-3 mt-2">
+                                        <div className="flex-1 h-px bg-white/10"></div>
+                                        <span className="text-[10px] text-gray-600 font-bold uppercase tracking-widest">or</span>
+                                        <div className="flex-1 h-px bg-white/10"></div>
                                     </div>
+
+                                    <button
+                                        type="button"
+                                        onClick={handleSkipLogin}
+                                        className="text-gray-500 text-xs hover:text-gray-300 transition-colors"
+                                    >
+                                        Continue without account →
+                                    </button>
                                 </div>
-                            )}
+                            </div>
                         </div>
                     </motion.div>
                 </motion.div>
