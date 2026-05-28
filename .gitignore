@@ -1,0 +1,6 @@
+futureyou/.venv/
+futureyou/__pycache__/
+*.pyc
+.env
+*.env
+futureyou/.env
