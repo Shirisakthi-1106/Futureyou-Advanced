@@ -1,4 +1,4 @@
-```txt
+
 streamlit==1.32.2
 scikit-learn==1.4.0
 numpy==1.26.4
