@@ -12,18 +12,21 @@ import shap
 def load_models():
     models = {}
     try:
-        models["exam"] = joblib.load("models/exam_model.pkl")
-        models["dropout"] = joblib.load("models/dropout_model.pkl")
-        models["scaler_main"] = joblib.load("models/scaler_main.pkl")
-        models["features_main"] = joblib.load("models/features_main.pkl")
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = lambda filename: os.path.join(base_dir, "models", filename)
 
-        models["stress"] = joblib.load("models/stress_model.pkl")
-        models["scaler_stress"] = joblib.load("models/scaler_stress.pkl")
-        models["features_stress"] = joblib.load("models/features_stress.pkl")
+        models["exam"] = joblib.load(model_path("exam_model.pkl"))
+        models["dropout"] = joblib.load(model_path("dropout_model.pkl"))
+        models["scaler_main"] = joblib.load(model_path("scaler_main.pkl"))
+        models["features_main"] = joblib.load(model_path("features_main.pkl"))
 
-        models["wb"] = joblib.load("models/wb_model.pkl")
-        models["scaler_wb"] = joblib.load("models/scaler_wb.pkl")
-        models["features_wb"] = joblib.load("models/features_wb.pkl")
+        models["stress"] = joblib.load(model_path("stress_model.pkl"))
+        models["scaler_stress"] = joblib.load(model_path("scaler_stress.pkl"))
+        models["features_stress"] = joblib.load(model_path("features_stress.pkl"))
+
+        models["wb"] = joblib.load(model_path("wb_model.pkl"))
+        models["scaler_wb"] = joblib.load(model_path("scaler_wb.pkl"))
+        models["features_wb"] = joblib.load(model_path("features_wb.pkl"))
         
         # Initialize SHAP explainers (do it once if possible, but for TreeExplainer it's fast)
         models["explainer_exam"] = shap.TreeExplainer(models["exam"])

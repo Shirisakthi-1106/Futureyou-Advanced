@@ -22,6 +22,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def strip_api_prefix(request, call_next):
+    path = request.scope.get("path", "")
+    if path.startswith("/api"):
+        request.scope["path"] = path[4:]
+    return await call_next(request)
+
 models = load_models()
 
 # --- Memory System (RAG) ---
