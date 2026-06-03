@@ -1,5 +1,5 @@
-
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
+from fastapi import HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -26,7 +26,7 @@ from futureyou.email_service import send_sentinel_alert, get_smtp_status
 
 load_dotenv()
 
-app = FastAPI(title="FutureYou API")
+app = FastAPI()
 
 
 # ---------------- CORS ----------------
