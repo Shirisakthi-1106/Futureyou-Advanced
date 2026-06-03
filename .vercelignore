@@ -1,0 +1,17 @@
+/.git
+/.gitignore
+/node_modules
+/.env.local
+/.env.*.local
+/futureyou/frontend/node_modules
+/futureyou/frontend/.env.local
+/futureyou/models
+/futureyou/pages
+/futureyou/data
+/__pycache__
+/*.pyc
+*.pyo
+/venv
+/env
+.DS_Store
+*.log

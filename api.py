@@ -1,11 +1,14 @@
 
 from fastapi import FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import requests
 import json
 import datetime
+from pathlib import Path
 from dotenv import load_dotenv
 
 from predictor import (
@@ -310,9 +313,47 @@ def chat_with_future(req: ChatRequest):
         }
 
 
+
+
 # ---------------- SMTP STATUS ----------------
 
 @app.get("/smtp-status")
 def smtp_status():
 
     return get_smtp_status()
+
+
+# ---------------- STATIC FILES & SPA FALLBACK ----------------
+
+# Mount static assets (CSS, JS, etc.) from frontend build
+FRONTEND_BUILD_DIR = Path(__file__).parent / "futureyou" / "frontend" / "dist"
+
+if FRONTEND_BUILD_DIR.exists():
+    # Serve static assets (JS, CSS, etc.)
+    app.mount("/assets", StaticFiles(directory=FRONTEND_BUILD_DIR / "assets"), name="assets")
+    
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        """Serve SPA - return index.html for non-API routes"""
+        # Don't catch API routes (they're already handled by @app.post/@app.get above)
+        # This catches everything else and serves index.html for SPA routing
+        file_path = FRONTEND_BUILD_DIR / full_path
+        
+        # If it's a file that exists in dist, serve it
+        if file_path.exists() and file_path.is_file():
+            return FileResponse(file_path)
+        
+        # Otherwise, serve index.html (SPA fallback)
+        index_file = FRONTEND_BUILD_DIR / "index.html"
+        if index_file.exists():
+            return FileResponse(index_file, media_type="text/html")
+        
+        return {
+            "message": "FutureYou API is running. Frontend not built. Run: cd futureyou/frontend && npm install && npm run build"
+        }
+else:
+    @app.get("/{full_path:path}")
+    def catch_all(full_path: str):
+        return {
+            "message": "FutureYou API is running. Frontend not built. Run: cd futureyou/frontend && npm install && npm run build"
+        }

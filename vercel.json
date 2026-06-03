@@ -1,6 +1,7 @@
 
 {
   "version": 2,
+  "buildCommand": "cd futureyou/frontend && npm install && npm run build",
   "builds": [
     {
       "src": "api.py",
@@ -8,6 +9,18 @@
     }
   ],
   "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "api.py"
+    },
+    {
+      "src": "/health",
+      "dest": "api.py"
+    },
+    {
+      "src": "/smtp-status",
+      "dest": "api.py"
+    },
     {
       "src": "/(.*)",
       "dest": "api.py"
