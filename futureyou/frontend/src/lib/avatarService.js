@@ -9,6 +9,11 @@ import { supabase } from "./supabase";
  */
 export async function saveAvatar(userId, avatarData) {
   if (!userId) throw new Error("User ID is required");
+  
+  if (!supabase) {
+    console.warn("Supabase is not configured. Saving avatar locally to AppState instead.");
+    return null;
+  }
 
   // Allow passing either a full object or just a URL (for backward compatibility)
   const isString = typeof avatarData === "string";
@@ -43,6 +48,11 @@ export async function saveAvatar(userId, avatarData) {
  */
 export async function getAvatar(userId) {
   if (!userId) return null;
+
+  if (!supabase) {
+    console.warn("Supabase is not configured. Defaulting to local/default avatar state.");
+    return null;
+  }
 
   try {
     const { data, error } = await supabase

@@ -28,10 +28,16 @@ def check_requirements():
         'plotly'
     ]
     
+    import_names = {
+        'scikit-learn': 'sklearn',
+        'python-dotenv': 'dotenv'
+    }
+    
     missing = []
     for package in required:
+        import_name = import_names.get(package, package.replace('-', '_'))
         try:
-            __import__(package.replace('-', '_'))
+            __import__(import_name)
             print(f"✅ {package}")
         except ImportError:
             print(f"❌ {package}")

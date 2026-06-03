@@ -80,7 +80,7 @@ export function AppProvider({ children }) {
     // --- PERSISTENCE LOGIC (LOCAL) ---
     useEffect(() => {
         localStorage.setItem("futureyou_settings", JSON.stringify(settings));
-        if (user?.uid && !isSyncing.current) {
+        if (user?.uid && !isSyncing.current && db) {
             // Save to Firestore if real user
             setDoc(doc(db, "configs", user.uid), { settings }, { merge: true }).catch(console.error);
         }
@@ -88,7 +88,7 @@ export function AppProvider({ children }) {
 
     useEffect(() => {
         localStorage.setItem("futureyou_selected_avatar", JSON.stringify(selectedAvatar));
-        if (user?.uid && !isSyncing.current) {
+        if (user?.uid && !isSyncing.current && db) {
             // Save to Firestore if real user
             setDoc(doc(db, "configs", user.uid), { selectedAvatar }, { merge: true }).catch(console.error);
         }
@@ -108,7 +108,7 @@ export function AppProvider({ children }) {
 
     // --- FIREBASE SYNC (FETCH) ---
     useEffect(() => {
-        if (user && !user.isDemo) {
+        if (user && !user.isDemo && db) {
             isSyncing.current = true;
             getDoc(doc(db, "configs", user.uid)).then(docSnap => {
                 if (docSnap.exists()) {
@@ -133,6 +133,7 @@ export function AppProvider({ children }) {
             displayName: "Demo User",
             isDemo: true
         };
+        demoUser.id = demoUser.uid;
         localStorage.setItem("futureyou_demo_user", JSON.stringify(demoUser));
         setUser(demoUser);
         setIsAuthOpen(false);
@@ -141,7 +142,9 @@ export function AppProvider({ children }) {
     const logoutUser = async () => {
         localStorage.removeItem("futureyou_demo_user");
         setUser(null);
-        await signOut(auth);
+        if (auth) {
+            await signOut(auth);
+        }
     };
 
     // --- SESSION INITIALIZATION ---
@@ -149,21 +152,39 @@ export function AppProvider({ children }) {
         const demoUser = localStorage.getItem("futureyou_demo_user");
         if (demoUser) {
             try {
-                setUser(JSON.parse(demoUser));
+                const parsed = JSON.parse(demoUser);
+                parsed.id = parsed.uid;
+                setUser(parsed);
                 setAuthLoading(false);
             } catch {
                 localStorage.removeItem("futureyou_demo_user");
             }
         }
 
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-            // If we have a demo user, ignore firebase state unless manually asked
-            if (!localStorage.getItem("futureyou_demo_user")) {
-                setUser(firebaseUser);
-                if (firebaseUser) setIsAuthOpen(false);
-            }
+        let unsubscribe = () => {};
+        if (auth) {
+            unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+                // If we have a demo user, ignore firebase state unless manually asked
+                if (!localStorage.getItem("futureyou_demo_user")) {
+                    if (firebaseUser) {
+                        const decoratedUser = {
+                            uid: firebaseUser.uid,
+                            id: firebaseUser.uid,
+                            email: firebaseUser.email,
+                            displayName: firebaseUser.displayName,
+                            photoURL: firebaseUser.photoURL
+                        };
+                        setUser(decoratedUser);
+                        setIsAuthOpen(false);
+                    } else {
+                        setUser(null);
+                    }
+                }
+                setAuthLoading(false);
+            });
+        } else {
             setAuthLoading(false);
-        });
+        }
 
         return () => unsubscribe();
     }, []);

@@ -134,5 +134,34 @@
       "stress_level": 51.2,
       "timestamp": "2026-03-30T20:00:39.052729"
     }
+  ],
+  "local-c2FrdGhpcG4wNkBn": [
+    {
+      "type": "prediction",
+      "habits": {
+        "sleep_hours": 6.5,
+        "study_hours": 3.0,
+        "screen_time": 6.0,
+        "social_media_hours": 3.0,
+        "exercise_frequency": 5,
+        "mood_score": 6,
+        "diet_quality": 1,
+        "mental_health_rating": 6,
+        "years_ahead": 5,
+        "guardian_email": "",
+        "guardian_emails": [],
+        "guardian_name": "Guardian",
+        "sentinel_enabled": true
+      },
+      "exam_score": 89.2,
+      "stress_level": 57.4,
+      "timestamp": "2026-06-03T11:20:37.048635"
+    },
+    {
+      "type": "chat",
+      "user_msg": "Introduce yourself as my future self. Keep it short and impactful.",
+      "agent_reply": "It's me, you, 5 years from now. I'm the result of the choices you're making today. I slept on those 6.5 hours a night, studied for 3 hours a day, and spent way too much time on social media - 3 hours daily. I'm living with the consequences of your fair diet, 5-day exercise routine, and the mental health rating of 6/10 that you've been trying to improve. I wish I could tell you that I optimized my habits and reached that 90.3/100 performance, but life had other plans. Let's talk about what really happened.",
+      "timestamp": "2026-06-03T11:20:40.701941"
+    }
   ]
 }

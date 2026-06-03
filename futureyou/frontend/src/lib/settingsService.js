@@ -17,6 +17,11 @@ import { supabase } from './supabase';
 export async function getUserSettings(userId) {
   if (!userId) throw new Error('userId is required');
 
+  if (!supabase) {
+    console.warn("Supabase is not configured. Returning local/default settings.");
+    return null;
+  }
+
   try {
     const { data, error } = await supabase
       .from('user_profiles') 
@@ -43,6 +48,11 @@ export async function getUserSettings(userId) {
  */
 export async function saveUserSettings(userId, settings) {
   if (!userId) throw new Error('userId is required');
+
+  if (!supabase) {
+    console.warn("Supabase is not configured. Skipping settings save to cloud.");
+    return false;
+  }
 
   const payload = {
     ...settings,
