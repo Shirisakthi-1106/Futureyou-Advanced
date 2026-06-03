@@ -1,50 +1,8 @@
 
 {
-  "version": 2,
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "env": {
     "PYO3_USE_ABI3_FORWARD_COMPATIBILITY": "1"
-  },
-  "builds": [
-    {
-      "src": "api.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "futureyou/frontend/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist"
-      }
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "api.py"
-    },
-    {
-      "src": "/health",
-      "dest": "api.py"
-    },
-    {
-      "src": "/smtp-status",
-      "dest": "api.py"
-    },
-    {
-      "src": "/assets/(.*)",
-      "dest": "futureyou/frontend/dist/assets/$1"
-    },
-    {
-      "src": "/avatars/(.*)",
-      "dest": "futureyou/frontend/dist/avatars/$1"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "futureyou/frontend/dist/index.html"
-    }
-  ]
+  }
 }
 
