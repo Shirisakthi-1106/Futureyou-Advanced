@@ -11,7 +11,7 @@ import datetime
 from pathlib import Path
 from dotenv import load_dotenv
 
-from predictor import (
+from futureyou.predictor import (
     load_models,
     predict_all,
     generate_trajectory,
@@ -20,8 +20,8 @@ from predictor import (
     generate_timeline_narrative_prompt
 )
 
-from sentinel import evaluate_sentinel_risk
-from email_service import send_sentinel_alert, get_smtp_status
+from futureyou.sentinel import evaluate_sentinel_risk
+from futureyou.email_service import send_sentinel_alert, get_smtp_status
 
 load_dotenv()
 
