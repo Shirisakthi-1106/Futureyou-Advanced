@@ -142,5 +142,5 @@ joblib.dump(FEATURES_WB, "models/features_wb.pkl")
 
 print("\n" + "=" * 60)
 print("  ✅ All 4 models trained and saved to /models/")
-print("  Now run: streamlit run app.py")
+print("  Now run: streamlit run streamlit_app.py")
 print("=" * 60)
