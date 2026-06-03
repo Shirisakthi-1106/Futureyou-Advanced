@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 import os
+import sys
 import requests
 import json
 import datetime
@@ -326,34 +327,46 @@ def smtp_status():
 # ---------------- STATIC FILES & SPA FALLBACK ----------------
 
 # Mount static assets (CSS, JS, etc.) from frontend build
-FRONTEND_BUILD_DIR = Path(__file__).parent / "futureyou" / "frontend" / "dist"
+# On Vercel, the code is placed in /vercel/output/function/
+# So we need to navigate relative to where the files actually are
 
-if FRONTEND_BUILD_DIR.exists():
-    # Serve static assets (JS, CSS, etc.)
-    app.mount("/assets", StaticFiles(directory=FRONTEND_BUILD_DIR / "assets"), name="assets")
+if getattr(sys, 'frozen', False):
+    # Running as compiled binary
+    base_dir = os.path.dirname(sys.executable)
+else:
+    # Running as script - use the location of this file
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+
+FRONTEND_BUILD_DIR = os.path.join(base_dir, "futureyou", "frontend", "dist")
+
+if os.path.exists(FRONTEND_BUILD_DIR):
+    # Try to mount static assets
+    try:
+        app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_BUILD_DIR, "assets")), name="assets")
+    except Exception as e:
+        print(f"Warning: Could not mount /assets: {e}")
     
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
         """Serve SPA - return index.html for non-API routes"""
-        # Don't catch API routes (they're already handled by @app.post/@app.get above)
-        # This catches everything else and serves index.html for SPA routing
-        file_path = FRONTEND_BUILD_DIR / full_path
+        file_path = os.path.join(FRONTEND_BUILD_DIR, full_path)
         
         # If it's a file that exists in dist, serve it
-        if file_path.exists() and file_path.is_file():
+        if os.path.isfile(file_path):
             return FileResponse(file_path)
         
         # Otherwise, serve index.html (SPA fallback)
-        index_file = FRONTEND_BUILD_DIR / "index.html"
-        if index_file.exists():
+        index_file = os.path.join(FRONTEND_BUILD_DIR, "index.html")
+        if os.path.isfile(index_file):
             return FileResponse(index_file, media_type="text/html")
         
         return {
-            "message": "FutureYou API is running. Frontend not built. Run: cd futureyou/frontend && npm install && npm run build"
+            "message": "FutureYou API is running. Frontend not built."
         }
 else:
+    print(f"Frontend directory not found at: {FRONTEND_BUILD_DIR}")
     @app.get("/{full_path:path}")
     def catch_all(full_path: str):
         return {
-            "message": "FutureYou API is running. Frontend not built. Run: cd futureyou/frontend && npm install && npm run build"
+            "message": f"FutureYou API is running. Frontend not found at {FRONTEND_BUILD_DIR}"
         }
