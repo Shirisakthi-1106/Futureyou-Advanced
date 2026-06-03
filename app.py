@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+app = FastAPI()
+
 from fastapi import HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -25,8 +27,6 @@ from futureyou.sentinel import evaluate_sentinel_risk
 from futureyou.email_service import send_sentinel_alert, get_smtp_status
 
 load_dotenv()
-
-app = FastAPI()
 
 
 # ---------------- CORS ----------------
