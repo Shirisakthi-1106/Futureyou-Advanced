@@ -1,8 +1,10 @@
+```toml id="jlwm11"
 [project]
 name = "futureyou"
 version = "0.1.0"
-description = "FutureYou AI App"
+description = "FutureYou API"
 requires-python = ">=3.11"
 
 [tool.vercel]
-entrypoint = "futureyou.api:app"
+entrypoint = "api:app"
+

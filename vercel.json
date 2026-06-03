@@ -1,15 +1,17 @@
+
 {
   "version": 2,
   "builds": [
     {
-      "src": "futureyou/api.py",
+      "src": "api.py",
       "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "futureyou/api.py"
+      "dest": "api.py"
     }
   ]
 }
+
