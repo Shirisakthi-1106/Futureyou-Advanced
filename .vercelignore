@@ -15,3 +15,12 @@
 /env
 .DS_Store
 *.log
+/futureyou/frontend/src
+/futureyou/frontend/.gitignore
+/futureyou/frontend/eslint.config.js
+/futureyou/frontend/postcss.config.js
+/futureyou/frontend/tailwind.config.js
+/futureyou/frontend/vite.config.js
+/futureyou/frontend/index.html
+/futureyou/frontend/package-lock.json
+/futureyou/frontend/.env
