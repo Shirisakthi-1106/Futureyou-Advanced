@@ -66,7 +66,7 @@ export default function Dashboard() {
         if (!actualExamScore && !actualStressLevel) return;
         setFeedbackStatus('loading');
         try {
-            await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/feedback`, {
+            await axios.post(`${import.meta.env.VITE_API_URL || '/api'}/feedback`, {
                 user_id: user?.id || "anonymous",
                 actual_exam_score: actualExamScore ? parseFloat(actualExamScore) : null,
                 actual_stress_level: actualStressLevel ? parseFloat(actualStressLevel) : null,

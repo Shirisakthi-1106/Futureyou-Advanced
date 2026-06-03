@@ -17,7 +17,7 @@ export default function Home() {
         if (!textInput.trim()) return;
         setParsing(true);
         try {
-            const res = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/parse_input`, { message: textInput });
+            const res = await axios.post(`${import.meta.env.VITE_API_URL || '/api'}/parse_input`, { message: textInput });
             const parsed = res.data.parsed;
             setHabits(prev => ({ ...prev, ...parsed }));
             setInputMode('sliders'); // Switch back to let them review
@@ -60,7 +60,7 @@ export default function Home() {
         navigate('/dashboard');
 
         // Fire and forget prediction request (it will update context and localStorage when done)
-        axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/predict`, payload)
+        axios.post(`${import.meta.env.VITE_API_URL || '/api'}/predict`, payload)
             .then(res => {
                 const combinedPredictions = {
                     ...res.data.predictions,
@@ -76,7 +76,7 @@ export default function Home() {
                 localStorage.setItem("futureyou_trajectory", JSON.stringify(res.data.trajectory));
 
                 // Then trigger background chat init
-                return axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/chat`, {
+                return axios.post(`${import.meta.env.VITE_API_URL || '/api'}/chat`, {
                     user_input: payload,
                     message: "Introduce yourself as my future self. Keep it short and impactful.",
                     history: []

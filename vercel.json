@@ -8,6 +8,13 @@
     {
       "src": "api.py",
       "use": "@vercel/python"
+    },
+    {
+      "src": "futureyou/frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "dist"
+      }
     }
   ],
   "routes": [
@@ -24,8 +31,19 @@
       "dest": "api.py"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "futureyou/frontend/dist/assets/$1"
+    },
+    {
+      "src": "/avatars/(.*)",
+      "dest": "futureyou/frontend/dist/avatars/$1"
+    },
+    {
+      "handle": "filesystem"
+    },
+    {
       "src": "/(.*)",
-      "dest": "api.py"
+      "dest": "futureyou/frontend/dist/index.html"
     }
   ]
 }

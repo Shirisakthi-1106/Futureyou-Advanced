@@ -3,7 +3,7 @@ import { AppContext } from '../context/AppContext';
 import { Shield, Mail, Bell, Send, CheckCircle2, AlertTriangle, X, Plus, Wifi, WifiOff, Clock, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 
-const API = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API = import.meta.env.VITE_API_URL || '/api';
 
 // Simple email regex
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);

@@ -58,7 +58,7 @@ export default function Chat() {
                 years_ahead: Math.round(habits.years_ahead)
             };
 
-            const chatRes = await axios.post(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/chat`, {
+            const chatRes = await axios.post(`${import.meta.env.VITE_API_URL || '/api'}/chat`, {
                 user_input: payload,
                 message: currentMessage,
                 history: newHistory.slice(0, -1)

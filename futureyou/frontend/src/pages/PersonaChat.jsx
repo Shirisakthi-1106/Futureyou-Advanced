@@ -115,7 +115,7 @@ export default function PersonaChat() {
                 : persona.systemPrompt;
 
             const response = await axios.post(
-                `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/persona-chat`,
+                `${import.meta.env.VITE_API_URL || '/api'}/persona-chat`,
                 {
                     persona_id: activePersona,
                     system_prompt: systemPrompt,
