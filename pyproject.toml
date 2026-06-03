@@ -21,8 +21,8 @@ dependencies = [
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
-[project.scripts]
-app = "app:app"
+[tool.vercel]
+entrypoint = "app:app"
 
 [tool.vercel.scripts]
 build = "cd futureyou/frontend && npm ci && npm run build"
