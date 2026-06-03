@@ -21,6 +21,17 @@ dependencies = [
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+py-modules = [
+    "app",
+    "email_service",
+    "predictor",
+    "sentinel",
+    "train_models",
+    "utils",
+    "verify_setup",
+]
+
 [tool.vercel]
 entrypoint = "app:app"
 
