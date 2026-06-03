@@ -1,2 +1,8 @@
+[project]
+name = "futureyou"
+version = "0.1.0"
+description = "FutureYou AI App"
+requires-python = ">=3.11"
+
 [tool.vercel]
 entrypoint = "futureyou.api:app"
