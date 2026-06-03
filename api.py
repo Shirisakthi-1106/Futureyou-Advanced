@@ -29,15 +29,6 @@ load_dotenv()
 app = FastAPI(title="FutureYou API")
 
 
-# ---------------- ROOT ROUTE ----------------
-
-@app.get("/")
-def home():
-    return {
-        "message": "FutureYou API is running"
-    }
-
-
 # ---------------- CORS ----------------
 
 app.add_middleware(
@@ -340,13 +331,27 @@ else:
 FRONTEND_BUILD_DIR = os.path.join(base_dir, "futureyou", "frontend", "dist")
 
 if os.path.exists(FRONTEND_BUILD_DIR):
+    print(f"✓ Frontend dist found at: {FRONTEND_BUILD_DIR}")
+    
     # Try to mount static assets
     try:
-        app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_BUILD_DIR, "assets")), name="assets")
+        assets_dir = os.path.join(FRONTEND_BUILD_DIR, "assets")
+        if os.path.exists(assets_dir):
+            app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+            print(f"✓ Mounted /assets")
     except Exception as e:
         print(f"Warning: Could not mount /assets: {e}")
     
-    @app.get("/{full_path:path}")
+    # Override the root "/" route to serve index.html
+    @app.get("/", include_in_schema=False)
+    async def serve_index():
+        """Serve index.html for root path"""
+        index_file = os.path.join(FRONTEND_BUILD_DIR, "index.html")
+        if os.path.isfile(index_file):
+            return FileResponse(index_file, media_type="text/html")
+        return {"error": "index.html not found"}
+    
+    @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
         """Serve SPA - return index.html for non-API routes"""
         file_path = os.path.join(FRONTEND_BUILD_DIR, full_path)
@@ -364,9 +369,4 @@ if os.path.exists(FRONTEND_BUILD_DIR):
             "message": "FutureYou API is running. Frontend not built."
         }
 else:
-    print(f"Frontend directory not found at: {FRONTEND_BUILD_DIR}")
-    @app.get("/{full_path:path}")
-    def catch_all(full_path: str):
-        return {
-            "message": f"FutureYou API is running. Frontend not found at {FRONTEND_BUILD_DIR}"
-        }
+    print(f"✗ Frontend directory NOT found at: {FRONTEND_BUILD_DIR}")
