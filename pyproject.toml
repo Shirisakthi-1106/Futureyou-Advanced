@@ -22,7 +22,7 @@ requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project.scripts]
-app = "api:app"
+app = "app:app"
 
 [tool.vercel.scripts]
 build = "cd futureyou/frontend && npm ci && npm run build"
